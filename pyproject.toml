@@ -1,0 +1,53 @@
+[project]
+name = "drone-controller"
+version = "0.1.0"
+description = "Multi-robot Tello Talent drone control system with formation flying and swarm coordination"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "Drone Controller Project", email = "example@example.com"}
+]
+keywords = ["drone", "tello", "robotics", "swarm", "formation", "multi-robot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+dependencies = [
+    "djitellopy>=2.5.0",
+    "numpy>=2.3.1",
+    "opencv-python>=4.11.0.86",
+    "pyyaml>=6.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+visualization = [
+    "matplotlib>=3.10.3",
+]
+
+[project.scripts]
+drone-controller = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/your-username/drone-controller"
+Repository = "https://github.com/your-username/drone-controller"
+Documentation = "https://github.com/your-username/drone-controller/wiki"
+"Bug Tracker" = "https://github.com/your-username/drone-controller/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]

@@ -1,0 +1,20 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Single Drone Demo",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"main.py",
+				"--mode",
+				"single",
+				"--demo"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
