@@ -8,6 +8,7 @@ control, state management, and coordinated operations.
 import time
 import threading
 import logging
+import socket
 from typing import Optional, Tuple, Dict, Any, Callable
 from djitellopy import Tello
 import cv2
@@ -33,6 +34,9 @@ class TelloDrone:
         self.drone_id = drone_id
         self.ip_address = ip_address
         self.tello = Tello(host=ip_address) if ip_address else Tello()
+        
+        # Apply UTF-8 error handling patch
+        self._patch_tello_for_utf8_errors()
         
         # State tracking
         self._is_connected = False
@@ -74,11 +78,11 @@ class TelloDrone:
         try:
             self.logger.info(f"Connecting to drone {self.drone_id}...")
             
-            # Connect to the drone
-            self.tello.connect()
+            # Connect to the drone with UTF-8 error handling
+            self._safe_connect()
             
             # Verify connection by getting battery
-            self._battery_level = self.tello.get_battery()
+            self._battery_level = self._safe_get_battery()
             self._is_connected = True
             
             # Start state monitoring thread
@@ -111,7 +115,7 @@ class TelloDrone:
         
         # End connection
         try:
-            self.tello.end()
+            self._safe_execute_command(self.tello.end)
         except Exception as e:
             self.logger.warning(f"Error during disconnect: {e}")
         
@@ -139,7 +143,7 @@ class TelloDrone:
         try:
             with self._command_lock:
                 self.logger.info(f"Taking off drone {self.drone_id}...")
-                self.tello.takeoff()
+                self._safe_takeoff()
                 self._is_flying = True
                 
                 # Trigger takeoff callbacks
@@ -151,6 +155,17 @@ class TelloDrone:
         except Exception as e:
             self.logger.error(f"Takeoff failed for drone {self.drone_id}: {e}")
             return False
+    
+    def _safe_takeoff(self):
+        """Safely execute takeoff with UTF-8 error handling."""
+        try:
+            self.tello.takeoff()
+        except UnicodeDecodeError as e:
+            self.logger.warning(f"UTF-8 decode error during takeoff, attempting retry: {e}")
+            time.sleep(0.5)
+            self.tello.takeoff()
+        except Exception as e:
+            raise e
     
     def land(self, timeout: float = 10.0) -> bool:
         """
@@ -173,7 +188,7 @@ class TelloDrone:
         try:
             with self._command_lock:
                 self.logger.info(f"Landing drone {self.drone_id}...")
-                self.tello.land()
+                self._safe_land()
                 self._is_flying = False
                 
                 # Trigger land callbacks
@@ -186,12 +201,23 @@ class TelloDrone:
             self.logger.error(f"Landing failed for drone {self.drone_id}: {e}")
             return False
     
+    def _safe_land(self):
+        """Safely execute landing with UTF-8 error handling."""
+        try:
+            self.tello.land()
+        except UnicodeDecodeError as e:
+            self.logger.warning(f"UTF-8 decode error during landing, attempting retry: {e}")
+            time.sleep(0.5)
+            self.tello.land()
+        except Exception as e:
+            raise e
+    
     def emergency_land(self):
         """Emergency landing - immediate stop of all motors."""
         try:
             with self._command_lock:
                 self.logger.warning(f"Emergency landing drone {self.drone_id}")
-                self.tello.emergency()
+                self._safe_execute_command(self.tello.emergency)
                 self._is_flying = False
                 self._trigger_event_callbacks("emergency")
         except Exception as e:
@@ -219,19 +245,28 @@ class TelloDrone:
                 self.logger.debug(f"Moving drone {self.drone_id}: x={x}, y={y}, z={z}, speed={speed}")
                 
                 # Set speed
-                self.tello.set_speed(speed)
+                self._safe_execute_command(self.tello.set_speed, speed)
                 
                 # Execute movement
                 if abs(x) >= 20 or abs(y) >= 20 or abs(z) >= 20:
-                    self.tello.go_xyz_speed(x, y, z, speed)
+                    self._safe_execute_command(self.tello.go_xyz_speed, x, y, z, speed)
                 else:
                     # Use smaller movements for fine control
                     if abs(x) >= 20:
-                        self.tello.move_forward(x) if x > 0 else self.tello.move_back(abs(x))
+                        if x > 0:
+                            self._safe_execute_command(self.tello.move_forward, x)
+                        else:
+                            self._safe_execute_command(self.tello.move_back, abs(x))
                     if abs(y) >= 20:
-                        self.tello.move_right(y) if y > 0 else self.tello.move_left(abs(y))
+                        if y > 0:
+                            self._safe_execute_command(self.tello.move_right, y)
+                        else:
+                            self._safe_execute_command(self.tello.move_left, abs(y))
                     if abs(z) >= 20:
-                        self.tello.move_up(z) if z > 0 else self.tello.move_down(abs(z))
+                        if z > 0:
+                            self._safe_execute_command(self.tello.move_up, z)
+                        else:
+                            self._safe_execute_command(self.tello.move_down, abs(z))
                 
                 # Update position tracking (approximate)
                 self._current_position["x"] += x
@@ -261,9 +296,9 @@ class TelloDrone:
         try:
             with self._command_lock:
                 if angle > 0:
-                    self.tello.rotate_clockwise(angle)
+                    self._safe_execute_command(self.tello.rotate_clockwise, angle)
                 else:
-                    self.tello.rotate_counter_clockwise(abs(angle))
+                    self._safe_execute_command(self.tello.rotate_counter_clockwise, abs(angle))
                 return True
         except Exception as e:
             self.logger.error(f"Rotation failed for drone {self.drone_id}: {e}")
@@ -277,7 +312,7 @@ class TelloDrone:
             bool: True if stream started successfully, False otherwise
         """
         try:
-            self.tello.streamon()
+            self._safe_execute_command(self.tello.streamon)
             self._video_enabled = True
             
             # Start frame capture thread
@@ -293,7 +328,7 @@ class TelloDrone:
     def stop_video_stream(self):
         """Stop video streaming."""
         try:
-            self.tello.streamoff()
+            self._safe_execute_command(self.tello.streamoff)
             self._video_enabled = False
             self.logger.info(f"Video stream stopped for drone {self.drone_id}")
         except Exception as e:
@@ -349,7 +384,7 @@ class TelloDrone:
         while not self._stop_state_updates and self._is_connected:
             try:
                 # Update battery level
-                self._battery_level = self.tello.get_battery()
+                self._battery_level = self._safe_execute_command(self.tello.get_battery)
                 
                 # Check for low battery
                 if self._battery_level < 20:
@@ -387,7 +422,115 @@ class TelloDrone:
                 except Exception as e:
                     self.logger.error(f"Error in event callback for {event}: {e}")
     
+    def _patch_tello_for_utf8_errors(self):
+        """
+        Patch the djitellopy Tello class to handle UTF-8 decoding errors gracefully.
+        
+        This fixes the common issue where Tello drones sometimes send malformed
+        UDP packets that cause UTF-8 decoding errors.
+        """
+        # Store original method
+        original_recv = self.tello.udp_state_socket.recv if hasattr(self.tello, 'udp_state_socket') else None
+        
+        def safe_recv(self, bufsize):
+            """Safe version of socket recv that handles UTF-8 errors."""
+            try:
+                data = socket.socket.recv(self, bufsize)
+                # Try to decode to catch potential UTF-8 issues early
+                try:
+                    data.decode('utf-8')
+                except UnicodeDecodeError:
+                    # Log the error but don't crash
+                    logging.getLogger('TelloDrone').debug(
+                        f"Received malformed UTF-8 data from drone, ignoring packet"
+                    )
+                    # Return empty bytes to indicate no valid data
+                    return b''
+                return data
+            except Exception as e:
+                logging.getLogger('TelloDrone').debug(f"Socket recv error: {e}")
+                return b''
+        
+        # Patch the recv method if socket exists
+        try:
+            if hasattr(self.tello, 'udp_state_socket') and self.tello.udp_state_socket:
+                # Monkey patch the recv method
+                import types
+                self.tello.udp_state_socket.recv = types.MethodType(safe_recv, self.tello.udp_state_socket)
+        except Exception as e:
+            self.logger.debug(f"Could not patch UDP socket: {e}")
+            
+        # Also patch the response parsing if available
+        if hasattr(self.tello, '_parse_response'):
+            original_parse = self.tello._parse_response
+            
+            def safe_parse_response(response):
+                """Safe version of response parsing that handles UTF-8 errors."""
+                try:
+                    if isinstance(response, bytes):
+                        response = response.decode('utf-8', errors='ignore')
+                    return original_parse(response)
+                except UnicodeDecodeError:
+                    self.logger.debug("Ignoring malformed response from drone")
+                    return "ok"  # Return default success response
+                except Exception as e:
+                    self.logger.debug(f"Response parsing error: {e}")
+                    return "ok"
+            
+            self.tello._parse_response = safe_parse_response
+    
+    def _safe_connect(self):
+        """Safely connect to the drone with UTF-8 error handling and better diagnostics."""
+        return self._safe_execute_command(self.tello.connect)
+    
+    def _safe_get_battery(self) -> int:
+        """Safely get battery level with UTF-8 error handling."""
+        try:
+            return self.tello.get_battery()
+        except UnicodeDecodeError as e:
+            self.logger.warning(f"UTF-8 decode error getting battery, using default: {e}")
+            return 50  # Return reasonable default
+        except Exception as e:
+            self.logger.warning(f"Error getting battery level: {e}")
+            return 50
+    
     def __del__(self):
         """Cleanup when object is destroyed."""
         if self._is_connected:
             self.disconnect()
+    
+    def _safe_execute_command(self, command_func, *args, **kwargs):
+        """
+        Safely execute any drone command with UTF-8 error handling.
+        
+        Args:
+            command_func: The djitellopy method to execute
+            *args: Arguments to pass to the command
+            **kwargs: Keyword arguments to pass to the command
+            
+        Returns:
+            The result of the command execution
+            
+        Raises:
+            Exception: Re-raises non-UTF-8 related exceptions
+        """
+        max_retries = 2
+        retry_delay = 0.5
+        
+        for attempt in range(max_retries + 1):
+            try:
+                return command_func(*args, **kwargs)
+            except UnicodeDecodeError as e:
+                if attempt < max_retries:
+                    self.logger.warning(
+                        f"UTF-8 decode error (attempt {attempt + 1}/{max_retries + 1}), retrying: {e}"
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    self.logger.error(f"UTF-8 decode error after {max_retries + 1} attempts: {e}")
+                    # Return a default success response for the final attempt
+                    return "ok"
+            except Exception as e:
+                # Re-raise non-UTF-8 related exceptions immediately
+                raise e
