@@ -11,19 +11,19 @@ drones:
   # Example drone configurations
   # Uncomment and modify IP addresses as needed
   drone_001:
-    ip_address: "127.0.0.1"  # Localhost for simulator
+    ip_address: "192.168.137.21"  # Localhost for simulator
     video_enabled: true
     max_speed: 40
 
   drone_002:
-    ip_address: "127.0.0.1"  # Localhost for simulator
+    ip_address: "192.168.137.22"  # Localhost for simulator
     video_enabled: true
     max_speed: 40
 
-  drone_003:
-    ip_address: "127.0.0.1"  # Localhost for simulator
-    video_enabled: false
-    max_speed: 45
+  # drone_003:
+  #   ip_address: "127.0.0.1"  # Localhost for simulator
+  #   video_enabled: false
+  #   max_speed: 45
 
 # Swarm configuration
 swarms:

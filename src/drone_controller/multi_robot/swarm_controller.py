@@ -280,11 +280,6 @@ class SwarmController:
 
         self.is_flying = len(successful_takeoffs) > 0
         success_rate = len(successful_takeoffs) / len(futures) if futures else 1.0
-
-        if success_rate >= 0.8:
-            # Record takeoff time for command timeout enforcement
-            self._last_takeoff_time = time.time()
-
         self.logger.info(f"Synchronized takeoff complete: {len(successful_takeoffs)}/{len(futures)} drones airborne ({success_rate:.1%})")
         return success_rate >= 0.8
 
@@ -309,11 +304,6 @@ class SwarmController:
 
         self.is_flying = len(successful_takeoffs) > 0
         success_rate = len(successful_takeoffs) / len(self.active_drones)
-
-        if success_rate >= 0.8:
-            # Record takeoff time for command timeout enforcement
-            self._last_takeoff_time = time.time()
-
         self.logger.info(f"Sequential takeoff complete: {len(successful_takeoffs)}/{len(self.active_drones)} drones airborne ({success_rate:.1%})")
 
         return success_rate >= 0.8  # Consider successful if 80% of drones are airborne
@@ -329,9 +319,6 @@ class SwarmController:
         Returns:
             bool: True if all drones landed successfully, False otherwise
         """
-        # Reset command timeout when landing command is received
-        self.reset_command_timeout()
-
         if not self.is_flying:
             self.logger.warning("Swarm is not flying")
             return True

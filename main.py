@@ -6,6 +6,8 @@ or multi-robot swarms of Tello Talent drones.
 """
 
 import argparse
+import signal
+import sys
 import time
 from typing import Optional
 
@@ -16,12 +18,64 @@ from drone_controller.utils.logging_utils import setup_drone_logging
 from drone_controller.utils.config_manager import DroneConfig
 
 
+# Global variables for signal handling
+swarm_controller_instance = None
+formation_manager_instance = None
+
+
+def signal_handler(sig, frame):
+    """Handle Ctrl+C signal gracefully in swarm mode."""
+    print("\n🛑 Ctrl+C detected! Performing emergency landing...")
+
+    # Emergency stop all drones if swarm controller exists
+    if swarm_controller_instance:
+        try:
+            print("🚁 Emergency stopping all drones...")
+            swarm_controller_instance.emergency_stop_all()
+            print("✅ Emergency stop completed")
+        except Exception as e:
+            print(f"❌ Error during emergency stop: {e}")
+
+        # Shutdown swarm
+        try:
+            print("🔄 Shutting down swarm...")
+            swarm_controller_instance.shutdown_swarm()
+            print("✅ Swarm shutdown completed")
+        except Exception as e:
+            print(f"❌ Error during swarm shutdown: {e}")
+
+    print("👋 Exiting...")
+    sys.exit(0)
+
+
+def backup_signal_handler(sig, frame):
+    """Backup signal handler for forced exit."""
+    print("\n🚨 Force exit detected! Terminating immediately...")
+    sys.exit(1)
+
+
 def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
     """Run in single drone mode."""
     logger = setup_drone_logging("INFO", True, "logs")
     logger.info(f"Starting single drone mode for {drone_id}")
 
     drone = TelloDrone(drone_id, ip_address)
+
+    # Set up signal handling for single drone mode
+    def single_drone_signal_handler(sig, frame):
+        print("\n🛑 Ctrl+C detected! Landing drone...")
+        try:
+            if drone._is_connected and drone._is_flying:
+                drone.emergency_land()
+                print("✅ Emergency landing completed")
+        except Exception as e:
+            print(f"❌ Error during emergency landing: {e}")
+        finally:
+            drone.disconnect()
+            print("👋 Exiting...")
+            sys.exit(0)
+
+    signal.signal(signal.SIGINT, single_drone_signal_handler)
 
     try:
         if drone.connect():
@@ -36,6 +90,7 @@ def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
             print("  move <x> <y> <z> - Move drone (cm)")
             print("  rotate <angle> - Rotate drone (degrees)")
             print("  quit - Exit program")
+            print("  Ctrl+C - Emergency landing and exit")
 
             while True:
                 try:
@@ -72,6 +127,8 @@ def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
         logger.error(f"Error in single drone mode: {e}")
 
     finally:
+        # Restore default signal handler
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
         drone.disconnect()
 
 
@@ -85,10 +142,24 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
         auto_init: If True, automatically initialize swarm after loading drones.
         verbose: If True, show detailed logging on console. Otherwise only warnings/errors.
     """
+    global swarm_controller_instance, formation_manager_instance
+
+    # Set up signal handling for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Set up backup signal handler for Windows (if available)
+    try:
+        if hasattr(signal, 'SIGBREAK'):
+            signal.signal(signal.SIGBREAK, backup_signal_handler)
+    except (OSError, ValueError):
+        pass  # Signal not available on this platform
+
     # Set console logging level based on verbose flag
     console_level = "INFO" if verbose else "WARNING"
     logger = setup_drone_logging(console_level, True, "logs")
     logger.info("Starting swarm mode")
+
+    print("🛡️  Signal handlers installed - Ctrl+C will perform emergency landing")
 
     # Load configuration
     config = DroneConfig(config_file)
@@ -96,6 +167,10 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
 
     swarm = SwarmController("main_swarm")
     formation_mgr = FormationManager("main_formation")
+
+    # Set global references for signal handler
+    swarm_controller_instance = swarm
+    formation_manager_instance = formation_mgr
 
     # Apply swarm configuration
     if swarm_config:
@@ -155,21 +230,14 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
         print("  formation <type> - Create formation (line, circle, diamond, v)")
         print("  move <x> <y> <z> - Move entire formation")
         print("  emergency - Emergency stop all drones")
-        print("  timeout - Check command timeout status")
         print("  quit - Exit program")
-        print("\nNote: After takeoff, you have 15 seconds to issue the next command!")
+        print("  Ctrl+C - Emergency landing and exit")
         if not verbose:
             print("💡 Use --verbose flag when starting for detailed logs")
 
         while True:
             try:
-                # Check for command timeout before prompting (but don't spam warnings)
-                timeout_triggered = swarm.enforce_command_timeout()
-
-                # Create clean prompt
                 prompt = "\nSwarm> "
-                if timeout_triggered:
-                    prompt = "\n⚠️  TIMEOUT! Emergency landed. " + prompt
 
                 command = input(prompt).strip()
 
@@ -201,7 +269,6 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
                 elif command == "takeoff":
                     if swarm.takeoff_all():
                         print("Swarm takeoff successful - synchronized takeoff enabled")
-                        print("WARNING: You have 15 seconds to issue the next command!")
                     else:
                         print("Swarm takeoff failed")
 
@@ -214,17 +281,6 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
                         print("Swarm landing successful")
                     else:
                         print("Swarm landing failed")
-
-                elif command == "timeout":
-                    if swarm._last_takeoff_time is None:
-                        print("No takeoff timeout active")
-                    else:
-                        elapsed = time.time() - swarm._last_takeoff_time
-                        remaining = max(0, swarm.command_timeout - elapsed)
-                        if remaining > 0:
-                            print(f"Command timeout: {remaining:.1f} seconds remaining")
-                        else:
-                            print("Command timeout exceeded!")
 
                 elif command == "status":
                     status = swarm.get_swarm_status()
@@ -261,8 +317,6 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
 
                     if formation_mgr.move_to_formation():
                         print(f"{formation_type.capitalize()} formation achieved")
-                        # Reset timeout when formation command is executed
-                        swarm.reset_command_timeout()
                     else:
                         print("Formation movement failed")
 
@@ -271,16 +325,12 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
                         _, x, y, z = command.split()
                         formation_mgr.move_formation(int(x), int(y), int(z))
                         print("Formation moved")
-                        # Reset timeout when movement command is executed
-                        swarm.reset_command_timeout()
                     except ValueError:
                         print("Usage: move <x> <y> <z>")
 
                 elif command == "emergency":
                     swarm.emergency_stop_all()
                     print("Emergency stop executed")
-                    # Reset timeout after emergency stop
-                    swarm.reset_command_timeout()
 
                 else:
                     print("Unknown command")
@@ -292,6 +342,18 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbo
         logger.error(f"Error in swarm mode: {e}")
 
     finally:
+        # Clean up global references
+        swarm_controller_instance = None
+        formation_manager_instance = None
+
+        # Restore default signal handlers
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        try:
+            if hasattr(signal, 'SIGBREAK'):
+                signal.signal(signal.SIGBREAK, signal.SIG_DFL)
+        except (OSError, ValueError):
+            pass
+
         swarm.shutdown_swarm()
 
 
