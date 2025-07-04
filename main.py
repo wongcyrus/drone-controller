@@ -75,7 +75,7 @@ def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
         drone.disconnect()
 
 
-def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
+def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False, verbose: bool = False):
     """
     Run in swarm mode.
 
@@ -83,8 +83,11 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
         config_file: Optional path to configuration file.
                     If None, loads from config/drone_config.yaml by default.
         auto_init: If True, automatically initialize swarm after loading drones.
+        verbose: If True, show detailed logging on console. Otherwise only warnings/errors.
     """
-    logger = setup_drone_logging("INFO", True, "logs")
+    # Set console logging level based on verbose flag
+    console_level = "INFO" if verbose else "WARNING"
+    logger = setup_drone_logging(console_level, True, "logs")
     logger.info("Starting swarm mode")
 
     # Load configuration
@@ -111,18 +114,24 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
         if not ip_address:
             continue
 
-        logger.info(f"Auto-adding drone {drone_id} with IP {ip_address}")
+        if verbose:
+            logger.info(f"Auto-adding drone {drone_id} with IP {ip_address}")
+
         if swarm.add_drone(drone_id, ip_address):
             drone = swarm.drones[drone_id]
             formation_mgr.add_drone(drone)
             auto_added_drones += 1
-            print(f"✅ Auto-added {drone_id} ({ip_address}) to swarm")
+            if verbose:
+                print(f"✅ Auto-added {drone_id} ({ip_address}) to swarm")
         else:
             print(f"❌ Failed to auto-add {drone_id}")
 
     if auto_added_drones > 0:
-        print(f"\n🚁 Successfully auto-loaded {auto_added_drones} drones from configuration")
-        print("You can now use 'init' to connect all drones, or 'add' to add more drones manually")
+        if verbose:
+            print(f"\n🚁 Successfully auto-loaded {auto_added_drones} drones from configuration")
+        else:
+            print(f"\n🚁 Auto-loaded {auto_added_drones} drones from configuration")
+            print("   Use --verbose flag to see detailed connection logs")
 
         # Auto-initialize if requested
         if auto_init:
@@ -138,7 +147,7 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
     try:
         print("\nSwarm Controller Interactive Mode")
         print("Available commands:")
-        print("  add <drone_id> [ip] - Add drone to swarm (in addition to auto-loaded drones)")
+        print("  add <drone_id> [ip] - Add drone to swarm")
         print("  init - Initialize swarm (connect all drones)")
         print("  takeoff - Take off all drones (synchronized)")
         print("  land - Land all drones")
@@ -149,14 +158,20 @@ def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
         print("  timeout - Check command timeout status")
         print("  quit - Exit program")
         print("\nNote: After takeoff, you have 15 seconds to issue the next command!")
+        if not verbose:
+            print("💡 Use --verbose flag when starting for detailed logs")
 
         while True:
             try:
-                # Check for command timeout before prompting
-                if swarm.enforce_command_timeout():
-                    print("\nWARNING: Command timeout exceeded! Drones have been emergency landed.")
+                # Check for command timeout before prompting (but don't spam warnings)
+                timeout_triggered = swarm.enforce_command_timeout()
 
-                command = input("\nSwarm> ").strip()
+                # Create clean prompt
+                prompt = "\nSwarm> "
+                if timeout_triggered:
+                    prompt = "\n⚠️  TIMEOUT! Emergency landed. " + prompt
+
+                command = input(prompt).strip()
 
                 if command == "quit":
                     break
@@ -318,6 +333,10 @@ def main():
         "--auto-init", action="store_true",
         help="Automatically initialize swarm after loading drones from config"
     )
+    parser.add_argument(
+        "--verbose", action="store_true",
+        help="Enable verbose console output (show detailed INFO level logs, useful for debugging)"
+    )
 
     args = parser.parse_args()
 
@@ -407,7 +426,7 @@ def main():
                 print("Interactive simulator swarm mode not yet implemented.")
                 print("Use --demo flag for simulator demonstrations.")
             else:
-                swarm_mode(args.config, args.auto_init)
+                swarm_mode(args.config, args.auto_init, args.verbose)
 
 
 if __name__ == "__main__":
