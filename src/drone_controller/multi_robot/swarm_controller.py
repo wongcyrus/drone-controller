@@ -52,6 +52,7 @@ class SwarmController:
             'max_drones': 10,
             'takeoff_stagger_delay': 1.0,
             'landing_stagger_delay': 0.0,
+            'synchronized_takeoff': True,
             'synchronized_landing': True
         }
 
