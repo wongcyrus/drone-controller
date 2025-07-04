@@ -31,9 +31,11 @@ class MockTelloDrone:
     VIDEO_PORT = 11111   # Port for video streaming (not implemented)
 
     def __init__(self, drone_ip: str = "127.0.0.1",
-                 name: str = "MockTello"):
+                 name: str = "MockTello",
+                 command_port: int = None):
         self.drone_ip = drone_ip
         self.name = name
+        self.command_port = command_port or self.COMMAND_PORT
         self.logger = logging.getLogger(f"MockTello-{drone_ip}")
 
         # Drone state
@@ -137,10 +139,10 @@ class MockTelloDrone:
         # Set socket options to prevent address reuse issues
         self.command_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self.command_socket.bind((self.drone_ip, self.COMMAND_PORT))
+            self.command_socket.bind((self.drone_ip, self.command_port))
             self.logger.info(
-                f"Command server listening on "
-                f"{self.drone_ip}:{self.COMMAND_PORT}"
+                "Command server listening on %s:%d",
+                self.drone_ip, self.command_port
             )
         except OSError as e:
             self.logger.error(f"Failed to bind command socket: {e}")
@@ -182,6 +184,7 @@ class MockTelloDrone:
     def _command_listener(self):
         """Listen for and respond to commands"""
         self.logger.info("Command listener started")
+        self.logger.info("Listening on %s:%d", self.drone_ip, self.command_port)
 
         while self.running:
             try:
@@ -189,26 +192,30 @@ class MockTelloDrone:
                 data, client_addr = self.command_socket.recvfrom(1024)
                 command = data.decode('utf-8').strip().lower()
 
-                self.logger.debug(
-                    "Raw UDP packet from %s:%d -> %s:%d: '%s'",
+                self.logger.info(
+                    "📥 RAW UDP: %s:%d -> %s:%d | '%s'",
                     client_addr[0], client_addr[1],
-                    self.drone_ip, self.COMMAND_PORT, command
+                    self.drone_ip, self.command_port, command
                 )
 
-                # Skip if receiving from our own port (prevents loops)
-                if client_addr[1] == self.COMMAND_PORT:
+                # Skip if receiving from our own IP and port (prevents loops)
+                if (client_addr[1] == self.command_port and
+                        client_addr[0] == self.drone_ip):
                     self.logger.debug(
-                        "Ignoring command from same port %s: '%s'",
+                        "⛔ IGNORED: Same IP/port %s: '%s'",
                         client_addr, command
                     )
                     continue
+
+                # Allow commands from port 8889 if they're from different IP
+                # (djitellopy client is on different machine/network)
 
                 # Filter out commands that look like error responses to prevent loops
                 if (command.startswith('error ') or
                         command.startswith('ok') or
                         len(command.strip()) == 0):
                     self.logger.warning(
-                        "Ignoring invalid/response command from %s: '%s'",
+                        "⛔ IGNORED: Invalid/response command from %s: '%s'",
                         client_addr, command
                     )
                     continue
@@ -217,7 +224,7 @@ class MockTelloDrone:
                 self.client_addresses.add(client_addr)
 
                 self.logger.info(
-                    "Received command from %s: '%s'", client_addr, command
+                    "✅ PROCESSING: Command from %s: '%s'", client_addr, command
                 )
 
                 # Process command and get response
@@ -229,12 +236,12 @@ class MockTelloDrone:
                         response.encode('utf-8'), client_addr
                     )
                     self.logger.info(
-                        "Sent response to %s: '%s'", client_addr, response
+                        "📤 RESPONSE: To %s: '%s'", client_addr, response
                     )
 
             except Exception as e:
                 if self.running:  # Only log if we're supposed to be running
-                    self.logger.error("Error in command listener: %s", e)
+                    self.logger.error("❌ ERROR in command listener: %s", e)
 
     def _process_command(self, command: str) -> str:
         """Process a command and return appropriate response"""
@@ -553,9 +560,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Mock Tello Drone Simulator')
-    parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to (default: 127.0.0.1)')
-    parser.add_argument('--name', default='MockTello', help='Name for this drone instance')
-    parser.add_argument('--multiple', type=int, help='Number of drones to create on sequential IPs')
+    parser.add_argument('--ip', default='127.0.0.1',
+                        help='IP address to bind to (default: 127.0.0.1)')
+    parser.add_argument('--name', default='MockTello',
+                        help='Name for this drone instance')
+    parser.add_argument('--multiple', type=int,
+                        help='Number of drones to create on sequential IPs')
+    parser.add_argument('--port', type=int, default=8889,
+                        help='Command port to bind to (default: 8889)')
 
     args = parser.parse_args()
 
@@ -571,28 +583,32 @@ def main():
                 ip_parts = base_ip_parts[:-1] + [str(base_ip_int + i)]
                 drone_ip = '.'.join(ip_parts)
                 drone_name = f"{args.name}-{i+1}"
+                # Use sequential ports for multiple drones
+                port = args.port + i
 
-                drone = MockTelloDrone(drone_ip, drone_name)
+                drone = MockTelloDrone(drone_ip, drone_name, port)
                 if drone.start():
                     drones.append(drone)
-                    print(f"Started drone {drone_name} on {drone_ip}")
+                    print(f"Started drone {drone_name} on {drone_ip}:{port}")
                 else:
-                    print(f"Failed to start drone {drone_name} on {drone_ip}")
+                    msg = f"Failed to start drone {drone_name} on {drone_ip}:{port}"
+                    print(msg)
         else:
             # Create single drone
-            drone = MockTelloDrone(args.ip, args.name)
+            drone = MockTelloDrone(args.ip, args.name, args.port)
             if drone.start():
                 drones.append(drone)
-                print(f"Started drone {args.name} on {args.ip}")
+                print(f"Started drone {args.name} on {args.ip}:{args.port}")
             else:
-                print(f"Failed to start drone {args.name} on {args.ip}")
+                msg = f"Failed to start drone {args.name} on {args.ip}:{args.port}"
+                print(msg)
                 return
 
         if not drones:
             print("No drones started successfully")
             return
 
-        print(f"\nMock Tello drone(s) running. Press Ctrl+C to stop.")
+        print("\nMock Tello drone(s) running. Press Ctrl+C to stop.")
         print("Listening for commands on port 8889")
         print("Broadcasting state on port 8890")
 

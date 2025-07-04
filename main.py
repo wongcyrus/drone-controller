@@ -28,7 +28,7 @@ def main():
 
     try:
         swarm = TelloSwarm.fromIps([
-            "192.168.221.1"
+            "172.28.3.205"
         ])
 
         print("Connecting to swarm...")
