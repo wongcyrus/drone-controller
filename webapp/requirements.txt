@@ -1,0 +1,21 @@
+# Drone Simulator WebApp Dependencies
+
+# Web Framework
+flask>=2.0.0
+flask-cors>=4.0.0
+
+# WebSocket Support
+websockets>=10.0
+
+# Async Support
+asyncio-mqtt>=0.11.0
+aiofiles>=23.0.0
+
+# Utility Libraries
+python-socketio[asyncio]>=5.8.0
+pyyaml>=6.0
+
+# Development Dependencies (optional)
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0

@@ -1,0 +1,410 @@
+/* Drone Simulator Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a1a;
+    color: #ffffff;
+    overflow: hidden;
+}
+
+header {
+    background: #2d3748;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #4a5568;
+    z-index: 1000;
+    position: relative;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    color: #63b3ed;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#connection-status {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+#connection-status.connected {
+    background: #48bb78;
+    color: white;
+}
+
+#connection-status.disconnected {
+    background: #f56565;
+    color: white;
+}
+
+#connection-status.connecting {
+    background: #ed8936;
+    color: white;
+}
+
+button {
+    background: #4299e1;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #3182ce;
+}
+
+button:disabled {
+    background: #718096;
+    cursor: not-allowed;
+}
+
+main {
+    display: flex;
+    height: calc(100vh - 70px);
+}
+
+/* 3D Viewport */
+#viewport-container {
+    flex: 1;
+    position: relative;
+    background: #000;
+}
+
+#three-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.viewport-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 100;
+}
+
+.viewport-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.viewport-controls button {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    background: rgba(45, 55, 72, 0.9);
+    border: 1px solid #4a5568;
+}
+
+/* Control Panel */
+#control-panel {
+    width: 350px;
+    background: #2d3748;
+    border-left: 2px solid #4a5568;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-section {
+    border-bottom: 1px solid #4a5568;
+    padding: 1rem;
+}
+
+.panel-section h3 {
+    color: #63b3ed;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.panel-section h4 {
+    color: #a0aec0;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Drone List */
+#drone-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+}
+
+.drone-item {
+    background: #4a5568;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.drone-item:hover {
+    background: #718096;
+}
+
+.drone-item.selected {
+    background: #4299e1;
+}
+
+.drone-item .drone-name {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.drone-item .drone-status {
+    font-size: 0.8rem;
+    color: #a0aec0;
+}
+
+.no-drones, .no-selection {
+    color: #718096;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* Drone Info */
+#drone-info {
+    background: #4a5568;
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.info-label {
+    color: #a0aec0;
+}
+
+.info-value {
+    font-weight: bold;
+}
+
+/* Manual Controls */
+.control-group {
+    margin-bottom: 1.5rem;
+}
+
+.button-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.button-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cmd-btn {
+    background: #38a169;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.cmd-btn:hover {
+    background: #2f855a;
+}
+
+.cmd-btn:disabled {
+    background: #718096;
+}
+
+/* Movement Controls */
+.movement-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.movement-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.movement-btn {
+    width: 80px;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* Input Group */
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+#custom-command {
+    flex: 1;
+    padding: 0.5rem;
+    background: #4a5568;
+    border: 1px solid #718096;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.9rem;
+}
+
+#custom-command:focus {
+    outline: none;
+    border-color: #4299e1;
+}
+
+/* Console */
+#console {
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+#console-content {
+    flex: 1;
+    background: #1a202c;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    padding: 0.5rem;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
+}
+
+.console-line {
+    margin-bottom: 0.25rem;
+}
+
+.console-line.command {
+    color: #63b3ed;
+}
+
+.console-line.response {
+    color: #48bb78;
+}
+
+.console-line.error {
+    color: #f56565;
+}
+
+.console-line.info {
+    color: #a0aec0;
+}
+
+.console-line .timestamp {
+    color: #718096;
+    font-size: 0.7rem;
+}
+
+#clear-console {
+    background: #e53e3e;
+    font-size: 0.8rem;
+    padding: 0.5rem;
+}
+
+#clear-console:hover {
+    background: #c53030;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    #control-panel {
+        width: 300px;
+    }
+
+    .button-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+    }
+
+    #viewport-container {
+        height: 60vh;
+    }
+
+    #control-panel {
+        width: 100%;
+        height: 40vh;
+        border-left: none;
+        border-top: 2px solid #4a5568;
+    }
+
+    .viewport-overlay {
+        top: auto;
+        bottom: 10px;
+        right: 10px;
+    }
+
+    .viewport-controls {
+        flex-direction: row;
+    }
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.status-indicator.online {
+    background: #48bb78;
+}
+
+.status-indicator.offline {
+    background: #f56565;
+}
+
+.status-indicator.flying {
+    background: #ed8936;
+    animation: pulse 1s infinite;
+}

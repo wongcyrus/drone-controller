@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Simulator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <h1>🚁 Drone Simulator</h1>
+            <div class="connection-status">
+                <span id="connection-status">Disconnected</span>
+                <button id="connect-btn">Connect</button>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <main>
+            <!-- 3D Viewport -->
+            <div id="viewport-container">
+                <canvas id="three-canvas"></canvas>
+
+                <!-- Viewport controls -->
+                <div class="viewport-overlay">
+                    <div class="viewport-controls">
+                        <button id="reset-camera">Reset View</button>
+                        <button id="toggle-grid">Toggle Grid</button>
+                        <button id="toggle-axes">Toggle Axes</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div id="control-panel">
+                <!-- Drone List -->
+                <div class="panel-section">
+                    <h3>Drones</h3>
+                    <div id="drone-list">
+                        <p class="no-drones">No drones connected</p>
+                    </div>
+                    <button id="add-drone-btn">Add Virtual Drone</button>
+                </div>
+
+                <!-- Selected Drone Info -->
+                <div class="panel-section">
+                    <h3>Selected Drone</h3>
+                    <div id="drone-info">
+                        <p class="no-selection">No drone selected</p>
+                    </div>
+                </div>
+
+                <!-- Manual Controls -->
+                <div class="panel-section">
+                    <h3>Manual Control</h3>
+                    <div id="manual-controls">
+                        <div class="control-group">
+                            <h4>Basic Commands</h4>
+                            <div class="button-grid">
+                                <button class="cmd-btn" data-command="command">SDK Mode</button>
+                                <button class="cmd-btn" data-command="takeoff">Takeoff</button>
+                                <button class="cmd-btn" data-command="land">Land</button>
+                                <button class="cmd-btn" data-command="emergency">Emergency</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <h4>Movement</h4>
+                            <div class="movement-controls">
+                                <div class="movement-row">
+                                    <button class="cmd-btn movement-btn" data-command="up 50">↑ Up</button>
+                                </div>
+                                <div class="movement-row">
+                                    <button class="cmd-btn movement-btn" data-command="left 50">← Left</button>
+                                    <button class="cmd-btn movement-btn" data-command="forward 50">Forward</button>
+                                    <button class="cmd-btn movement-btn" data-command="right 50">Right →</button>
+                                </div>
+                                <div class="movement-row">
+                                    <button class="cmd-btn movement-btn" data-command="back 50">Back</button>
+                                </div>
+                                <div class="movement-row">
+                                    <button class="cmd-btn movement-btn" data-command="down 50">↓ Down</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <h4>Rotation</h4>
+                            <div class="button-row">
+                                <button class="cmd-btn" data-command="ccw 90">↶ CCW</button>
+                                <button class="cmd-btn" data-command="cw 90">↷ CW</button>
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <h4>Custom Command</h4>
+                            <div class="input-group">
+                                <input type="text" id="custom-command" placeholder="Enter command...">
+                                <button id="send-command-btn">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Console -->
+                <div class="panel-section">
+                    <h3>Console</h3>
+                    <div id="console">
+                        <div id="console-content"></div>
+                        <button id="clear-console">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/drone-simulator.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/three-scene.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/websocket-client.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

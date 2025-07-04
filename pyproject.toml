@@ -37,6 +37,10 @@ dev = [
 visualization = [
     "matplotlib>=3.10.3",
 ]
+webapp = [
+    "flask>=2.0.0",
+    "websockets>=10.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
