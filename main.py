@@ -8,7 +8,6 @@ or multi-robot swarms of Tello Talent drones.
 import argparse
 import signal
 import sys
-import time
 from typing import Optional
 
 from drone_controller.core.tello_drone import TelloDrone
