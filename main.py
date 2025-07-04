@@ -6,6 +6,7 @@ or multi-robot swarms of Tello Talent drones.
 """
 
 import argparse
+import time
 from typing import Optional
 
 from drone_controller.core.tello_drone import TelloDrone
@@ -74,13 +75,14 @@ def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
         drone.disconnect()
 
 
-def swarm_mode(config_file: Optional[str] = None):
+def swarm_mode(config_file: Optional[str] = None, auto_init: bool = False):
     """
     Run in swarm mode.
 
     Args:
         config_file: Optional path to configuration file.
                     If None, loads from config/drone_config.yaml by default.
+        auto_init: If True, automatically initialize swarm after loading drones.
     """
     logger = setup_drone_logging("INFO", True, "logs")
     logger.info("Starting swarm mode")
@@ -94,23 +96,66 @@ def swarm_mode(config_file: Optional[str] = None):
 
     # Apply swarm configuration
     if swarm_config:
-        swarm.set_formation_config(swarm_config)
+        swarm.update_swarm_config(swarm_config)
+
+    # Auto-load drones from configuration
+    drones_config = config.config_data.get("drones", {})
+    auto_added_drones = 0
+
+    for drone_id, drone_config_data in drones_config.items():
+        if drone_id == "default":
+            continue
+
+        # Skip commented out drones (those without ip_address)
+        ip_address = drone_config_data.get("ip_address")
+        if not ip_address:
+            continue
+
+        logger.info(f"Auto-adding drone {drone_id} with IP {ip_address}")
+        if swarm.add_drone(drone_id, ip_address):
+            drone = swarm.drones[drone_id]
+            formation_mgr.add_drone(drone)
+            auto_added_drones += 1
+            print(f"✅ Auto-added {drone_id} ({ip_address}) to swarm")
+        else:
+            print(f"❌ Failed to auto-add {drone_id}")
+
+    if auto_added_drones > 0:
+        print(f"\n🚁 Successfully auto-loaded {auto_added_drones} drones from configuration")
+        print("You can now use 'init' to connect all drones, or 'add' to add more drones manually")
+
+        # Auto-initialize if requested
+        if auto_init:
+            print("\n🔄 Auto-initializing swarm...")
+            if swarm.initialize_swarm():
+                print("✅ Swarm initialized successfully")
+            else:
+                print("❌ Swarm initialization failed")
+    else:
+        print("\n⚠️  No drones auto-loaded from configuration")
+        print("Use 'add <drone_id> [ip]' to manually add drones to the swarm")
 
     try:
         print("\nSwarm Controller Interactive Mode")
         print("Available commands:")
-        print("  add <drone_id> [ip] - Add drone to swarm")
+        print("  add <drone_id> [ip] - Add drone to swarm (in addition to auto-loaded drones)")
         print("  init - Initialize swarm (connect all drones)")
-        print("  takeoff - Take off all drones")
+        print("  takeoff - Take off all drones (synchronized)")
         print("  land - Land all drones")
         print("  status - Show swarm status")
         print("  formation <type> - Create formation (line, circle, diamond, v)")
         print("  move <x> <y> <z> - Move entire formation")
         print("  emergency - Emergency stop all drones")
+        print("  timeout - Check command timeout status")
         print("  quit - Exit program")
+        print("\nNote: After takeoff, you have 15 seconds to issue the next command!")
 
         while True:
             try:
+                # Check for command timeout before prompting
+                if swarm.enforce_command_timeout():
+                    print("\nWARNING: Command timeout exceeded! Drones have been emergency landed.")
+
                 command = input("\nSwarm> ").strip()
 
                 if command == "quit":
@@ -140,15 +185,31 @@ def swarm_mode(config_file: Optional[str] = None):
 
                 elif command == "takeoff":
                     if swarm.takeoff_all():
-                        print("Swarm takeoff successful")
+                        print("Swarm takeoff successful - synchronized takeoff enabled")
+                        print("WARNING: You have 15 seconds to issue the next command!")
                     else:
                         print("Swarm takeoff failed")
 
                 elif command == "land":
-                    if swarm.land_all():
+                    # Use synchronized landing from configuration
+                    swarm_landing_config = config.get_swarm_config()
+                    synchronized = swarm_landing_config.get('synchronized_landing', True) if swarm_landing_config else True
+
+                    if swarm.land_all(synchronized=synchronized):
                         print("Swarm landing successful")
                     else:
                         print("Swarm landing failed")
+
+                elif command == "timeout":
+                    if swarm._last_takeoff_time is None:
+                        print("No takeoff timeout active")
+                    else:
+                        elapsed = time.time() - swarm._last_takeoff_time
+                        remaining = max(0, swarm.command_timeout - elapsed)
+                        if remaining > 0:
+                            print(f"Command timeout: {remaining:.1f} seconds remaining")
+                        else:
+                            print("Command timeout exceeded!")
 
                 elif command == "status":
                     status = swarm.get_swarm_status()
@@ -185,6 +246,8 @@ def swarm_mode(config_file: Optional[str] = None):
 
                     if formation_mgr.move_to_formation():
                         print(f"{formation_type.capitalize()} formation achieved")
+                        # Reset timeout when formation command is executed
+                        swarm.reset_command_timeout()
                     else:
                         print("Formation movement failed")
 
@@ -193,12 +256,16 @@ def swarm_mode(config_file: Optional[str] = None):
                         _, x, y, z = command.split()
                         formation_mgr.move_formation(int(x), int(y), int(z))
                         print("Formation moved")
+                        # Reset timeout when movement command is executed
+                        swarm.reset_command_timeout()
                     except ValueError:
                         print("Usage: move <x> <y> <z>")
 
                 elif command == "emergency":
                     swarm.emergency_stop_all()
                     print("Emergency stop executed")
+                    # Reset timeout after emergency stop
+                    swarm.reset_command_timeout()
 
                 else:
                     print("Unknown command")
@@ -228,7 +295,11 @@ def main():
         "--drone-id", default="drone_001", help="Drone ID for single mode"
     )
     parser.add_argument("--ip", help="IP address for single drone mode")
-    parser.add_argument("--config", help="Configuration file path")
+    parser.add_argument(
+        "--config",
+        default="config/drone_config.yaml",
+        help="Configuration file path (default: config/drone_config.yaml)"
+    )
     parser.add_argument(
         "--demo", action="store_true", help="Run demonstration sequence"
     )
@@ -242,6 +313,10 @@ def main():
     parser.add_argument(
         "--use-real", action="store_true",
         help="Force use of real drones instead of simulator"
+    )
+    parser.add_argument(
+        "--auto-init", action="store_true",
+        help="Automatically initialize swarm after loading drones from config"
     )
 
     args = parser.parse_args()
@@ -332,7 +407,7 @@ def main():
                 print("Interactive simulator swarm mode not yet implemented.")
                 print("Use --demo flag for simulator demonstrations.")
             else:
-                swarm_mode(args.config)
+                swarm_mode(args.config, args.auto_init)
 
 
 if __name__ == "__main__":

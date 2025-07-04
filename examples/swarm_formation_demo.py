@@ -69,10 +69,14 @@ def swarm_formation_demo():
         status = swarm.get_swarm_status()
         logger.info(f"Swarm ready: {status['active_drones']}/{status['total_drones']} drones active")
 
+        # Get initial health status
+        health_status = swarm.get_swarm_health_status()
+        logger.info(f"Swarm health: {health_status['operational_percentage']:.1f}% operational")
+
         # Take off all drones
-        logger.info("Taking off swarm...")
-        if not swarm.takeoff_all(stagger_delay=2.0):
-            logger.error("Swarm takeoff failed")
+        logger.info("Taking off swarm (synchronized)...")
+        if not swarm.takeoff_all(synchronized=True):
+            logger.error("Swarm synchronized takeoff failed")
             return
 
         time.sleep(5)  # Wait for stable hover
@@ -88,14 +92,33 @@ def swarm_formation_demo():
         for formation_name, formation_func in formations_demo:
             logger.info(f"Creating {formation_name} formation...")
 
+            # Check swarm health before each formation
+            health_status = swarm.get_swarm_health_status()
+            if health_status['operational_percentage'] < 50:
+                logger.warning(f"Swarm health degraded to {health_status['operational_percentage']:.1f}%")
+                logger.warning("Skipping remaining formations due to low operational drone count")
+                break
+
             # Create formation
             if formation_func():
                 logger.info(f"Moving to {formation_name} formation...")
                 if formation_mgr.move_to_formation(speed=25, timeout=30.0):
                     logger.info(f"{formation_name.capitalize()} formation achieved!")
 
-                    # Hold formation for a moment
-                    time.sleep(5)
+                    # Hold formation for longer time to prevent premature landing
+                    hold_time = 10  # Increased hold time
+                    logger.info(f"Holding {formation_name} formation for {hold_time} seconds...")
+                    time.sleep(hold_time)
+
+                    # Check for any errors during formation
+                    health_after = swarm.get_swarm_health_status()
+                    if health_after['operational_drones'] < health_status['operational_drones']:
+                        logger.warning(f"Lost {health_status['operational_drones'] - health_after['operational_drones']} drones during formation")
+
+                        # Show error statistics
+                        for drone_id, stats in health_after['error_statistics'].items():
+                            if stats['total_errors'] > 0:
+                                logger.warning(f"Drone {drone_id} errors: {stats['total_errors']} total, {stats['motor_stop_errors']} motor stop")
 
                     # Demonstrate formation movements
                     if formation_name == "line":

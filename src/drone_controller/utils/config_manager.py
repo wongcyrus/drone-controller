@@ -159,6 +159,43 @@ class DroneConfig:
         """
         return self.config_data.get("safety", {})
 
+    def get_error_handling_config(self) -> Dict[str, Any]:
+        """
+        Get error handling configuration parameters.
+
+        Returns:
+            dict: Error handling configuration
+        """
+        return self.config_data.get("error_handling", {})
+
+    def get_retry_config(self) -> Dict[str, Any]:
+        """
+        Get retry configuration parameters.
+
+        Returns:
+            dict: Retry configuration
+        """
+        return self.config_data.get("retry_config", {})
+
+    def get_motor_stop_handling_config(self) -> Dict[str, Any]:
+        """
+        Get motor stop error handling configuration.
+
+        Returns:
+            dict: Motor stop handling configuration
+        """
+        error_handling = self.get_error_handling_config()
+        return error_handling.get("motor_stop", {})
+
+    def get_degraded_performance_config(self) -> Dict[str, Any]:
+        """
+        Get degraded performance mode configuration.
+
+        Returns:
+            dict: Degraded performance configuration
+        """
+        return self.config_data.get("degraded_performance", {})
+
     def add_drone_config(self, drone_id: str, config: Dict[str, Any]):
         """
         Add or update configuration for a drone.
@@ -271,6 +308,43 @@ class DroneConfig:
                 "max_altitude": 300,
                 "battery_warning_threshold": 20,
                 "battery_critical_threshold": 10
+            },
+            "error_handling": {
+                "motor_stop": {
+                    "max_retries": 5,
+                    "base_delay": 2.0,
+                    "backoff_multiplier": 1.5,
+                    "max_delay": 10.0,
+                    "enable_degraded_mode": True,
+                    "auto_exclude_problematic_drones": True,
+                    "cooldown_period": 30.0
+                },
+                "connection_timeout": {
+                    "max_retries": 3,
+                    "base_delay": 1.0,
+                    "backoff_multiplier": 2.0
+                },
+                "movement_timeout": {
+                    "max_retries": 3,
+                    "base_delay": 0.5,
+                    "backoff_multiplier": 1.5
+                }
+            },
+            "retry_config": {
+                "default_max_retries": 3,
+                "default_base_delay": 1.0,
+                "default_backoff_multiplier": 1.5,
+                "enable_exponential_backoff": True,
+                "enable_jitter": True,
+                "jitter_max_ms": 1000
+            },
+            "degraded_performance": {
+                "enable_auto_mode": True,
+                "reduced_speed_factor": 0.7,
+                "reduced_movement_distance": 0.8,
+                "extended_delays": True,
+                "skip_non_critical_operations": True,
+                "battery_threshold_for_degraded_mode": 30
             },
             "logging": {
                 "level": "INFO",
