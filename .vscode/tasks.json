@@ -87,12 +87,11 @@
             "problemMatcher": []
         },
         {
-            "label": "Start 3D Simulator",
+            "label": "Start UDP Simulator",
             "type": "shell",
             "command": "python",
             "args": [
-                "main.py",
-                "--simulator"
+                "simulator/start_udp_simulator.py"
             ],
             "group": "build",
             "isBackground": true,
@@ -101,55 +100,41 @@
                 "echo": true,
                 "reveal": "always",
                 "focus": false,
-                "panel": "shared"
+                "panel": "dedicated"
             }
         },
         {
-            "label": "Simulator Basic Demo",
-            "type": "shell",
-            "command": "python",
-            "args": [
-                "simulator/simulator_bridge.py",
-                "basic"
-            ],
-            "group": "build",
-            "isBackground": false,
-            "problemMatcher": [],
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "Simulator Swarm Demo",
-            "type": "shell",
-            "command": "python",
-            "args": [
-                "simulator/simulator_bridge.py",
-                "swarm"
-            ],
-            "group": "build",
-            "isBackground": false,
-            "problemMatcher": [],
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "Force Simulator Single Demo",
+            "label": "Single Drone with Simulator",
             "type": "shell",
             "command": "python",
             "args": [
                 "main.py",
                 "--mode",
                 "single",
-                "--demo",
-                "--use-simulator"
+                "--drone-id",
+                "drone_001",
+                "--ip",
+                "192.168.10.1"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Swarm with Simulator",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "swarm",
+                "--demo"
             ],
             "group": "build",
             "isBackground": false,
@@ -169,29 +154,7 @@
                 "main.py",
                 "--mode",
                 "single",
-                "--demo",
-                "--use-real"
-            ],
-            "group": "build",
-            "isBackground": false,
-            "problemMatcher": [],
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "Force Simulator Swarm Demo",
-            "type": "shell",
-            "command": "python",
-            "args": [
-                "main.py",
-                "--mode",
-                "swarm",
-                "--demo",
-                "--use-simulator"
+                "--demo"
             ],
             "group": "build",
             "isBackground": false,
@@ -211,8 +174,7 @@
                 "main.py",
                 "--mode",
                 "swarm",
-                "--demo",
-                "--use-real"
+                "--demo"
             ],
             "group": "build",
             "isBackground": false,

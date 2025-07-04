@@ -1,9 +1,9 @@
-# Drone Simulator 3D Launcher
-# PowerShell script to start the drone simulator
+# Tello UDP Simulator Launcher
+# PowerShell script to start the UDP-based drone simulator
 
 Write-Host ""
-Write-Host "🚁 Drone Simulator 3D" -ForegroundColor Green
-Write-Host "==================" -ForegroundColor Green
+Write-Host "🚁 Tello UDP Simulator" -ForegroundColor Green
+Write-Host "=====================" -ForegroundColor Green
 Write-Host ""
 
 # Check if Python is available
@@ -18,26 +18,24 @@ try {
 }
 
 # Check if we're in the right directory
-if (-not (Test-Path "index.html")) {
+if (-not (Test-Path "udp_simulator.py")) {
     Write-Host "❌ Simulator files not found!" -ForegroundColor Red
     Write-Host "📂 Please run this script from the simulator directory." -ForegroundColor Yellow
     Read-Host "Press Enter to exit"
     exit 1
 }
 
-Write-Host "🚀 Starting simulator..." -ForegroundColor Cyan
+Write-Host "🚀 Starting UDP simulator..." -ForegroundColor Cyan
 Write-Host ""
 
-# Try to start with Python bridge
+# Start the UDP simulator
 try {
-    python start_simulator.py
+    python start_udp_simulator.py
 } catch {
     Write-Host ""
-    Write-Host "⚠️  Python bridge failed. Opening simulator directly..." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Fallback to opening HTML file directly
-    Start-Process "index.html"
+    Write-Host "❌ Failed to start simulator: $_" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+}
     Write-Host "🌐 Simulator opened in your default browser." -ForegroundColor Green
     Write-Host ""
     Write-Host "📝 Note: For full Python integration features, install:" -ForegroundColor Yellow

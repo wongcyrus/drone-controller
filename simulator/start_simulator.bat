@@ -1,8 +1,8 @@
 @echo off
-title Drone Simulator 3D
+title Tello UDP Simulator
 echo.
-echo 🚁 Drone Simulator 3D
-echo ==================
+echo 🚁 Tello UDP Simulator
+echo =====================
 echo.
 
 REM Check if Python is available
@@ -15,9 +15,15 @@ if %errorlevel% neq 0 (
 )
 
 REM Check if we're in the right directory
-if not exist "index.html" (
+if not exist "udp_simulator.py" (
     echo ❌ Simulator files not found!
     echo 📂 Please run this script from the simulator directory.
+    pause
+    exit /b 1
+)
+
+echo ✅ Starting UDP simulator...
+python start_udp_simulator.py
     pause
     exit /b 1
 )

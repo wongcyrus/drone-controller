@@ -318,115 +318,34 @@ def main():
     parser.add_argument(
         "--demo", action="store_true", help="Run demonstration sequence"
     )
-    parser.add_argument(
-        "--simulator", action="store_true", help="Start 3D web simulator"
-    )
-    parser.add_argument(
-        "--use-simulator", action="store_true",
-        help="Force use of simulator instead of real drones"
-    )
-    parser.add_argument(
-        "--use-real", action="store_true",
-        help="Force use of real drones instead of simulator"
-    )
+    # Note: To use simulator, start the standalone simulator first:
+    # python simulator/udp_simulator.py
     parser.add_argument(
         "--auto-init", action="store_true",
         help="Automatically initialize swarm after loading drones from config"
     )
     parser.add_argument(
         "--verbose", action="store_true",
-        help="Enable verbose console output (show detailed INFO level logs, useful for debugging)"
+        help="Enable verbose console output (show detailed INFO level logs)"
     )
 
     args = parser.parse_args()
 
-    # Validate conflicting arguments
-    if args.use_simulator and args.use_real:
-        print("Error: Cannot specify both --use-simulator and --use-real")
-        return
-
-    if args.simulator:
-        print("Starting 3D Drone Simulator...")
-        try:
-            from simulator.simulator_bridge import start_simulator
-            start_simulator()
-        except ImportError as e:
-            print(f"Failed to start simulator: {e}")
-            print("Please ensure all simulator dependencies are installed.")
-        return
-
-    # Determine whether to use simulator or real drones
-    use_simulator = args.use_simulator
-    use_real = args.use_real
-
-    # If neither explicitly specified, choose based on mode and availability
-    if not use_simulator and not use_real:
-        if args.demo:
-            # For demos, prefer simulator if available
-            try:
-                import simulator.simulator_bridge  # noqa: F401
-                use_simulator = True
-                print("Simulator available - using simulator for demo")
-            except ImportError:
-                use_real = True
-                print("Simulator not available - using real drones for demo")
-        else:
-            # For interactive mode, default to real drones
-            use_real = True
-            print("Interactive mode - using real drones")
-            print("(use --use-simulator to force simulator)")
-
     if args.demo:
         print("Running demonstration...")
         if args.mode == "single":
-            if use_simulator:
-                try:
-                    from simulator.simulator_bridge import (
-                        run_basic_flight_demo
-                    )
-                    print("Starting 3D simulator demo...")
-                    run_basic_flight_demo()
-                except (ImportError, AttributeError):
-                    print("Simulator not available, using real drone...")
-                    from examples.basic_flight import basic_flight_demo
-                    basic_flight_demo()
-            else:
-                print("Running real drone demo...")
-                from examples.basic_flight import basic_flight_demo
-                basic_flight_demo()
+            print("Running real drone demo...")
+            from examples.basic_flight import basic_flight_demo
+            basic_flight_demo()
         else:  # swarm mode
-            if use_simulator:
-                try:
-                    from simulator.simulator_bridge import (
-                        run_swarm_formation_demo
-                    )
-                    print("Starting 3D swarm simulator demo...")
-                    run_swarm_formation_demo()
-                except ImportError:
-                    print("Simulator not available, using real drone...")
-                    from examples.swarm_formation_demo import (
-                        swarm_formation_demo
-                    )
-                    swarm_formation_demo()
-            else:
-                print("Running real drone swarm demo...")
-                from examples.swarm_formation_demo import swarm_formation_demo
-                swarm_formation_demo()
+            print("Running real drone swarm demo...")
+            from examples.swarm_formation_demo import swarm_formation_demo
+            swarm_formation_demo()
     else:
         if args.mode == "single":
-            if use_simulator:
-                print("Starting single drone simulator mode...")
-                print("Interactive simulator mode not yet implemented.")
-                print("Use --demo flag for simulator demonstrations.")
-            else:
-                single_drone_mode(args.drone_id, args.ip)
+            single_drone_mode(args.drone_id, args.ip)
         else:
-            if use_simulator:
-                print("Starting swarm simulator mode...")
-                print("Interactive simulator swarm mode not yet implemented.")
-                print("Use --demo flag for simulator demonstrations.")
-            else:
-                swarm_mode(args.config, args.auto_init, args.verbose)
+            swarm_mode(args.config, args.auto_init, args.verbose)
 
 
 if __name__ == "__main__":

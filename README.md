@@ -352,6 +352,38 @@ Logs are automatically saved to the `logs/` directory with detailed information 
 - Error conditions
 - Formation movements
 
+## Testing with Simulator
+
+For testing without physical drones, use the UDP-based simulator that mocks the actual Tello protocol:
+
+### Quick Start
+```bash
+# 1. Start the simulator (in first terminal)
+cd simulator
+python start_udp_simulator.py
+
+# 2. Run your application (in second terminal)
+python main.py --mode single --drone-id drone_001 --ip 192.168.10.1
+python main.py --mode swarm --demo
+```
+
+### Simulator Features
+- **Protocol Accurate**: Exactly matches real Tello UDP communication
+- **Multi-Drone Support**: Simulate multiple drones simultaneously
+- **Realistic Behavior**: Movement physics, battery drain, state simulation
+- **All Commands**: Supports takeoff, land, movement, queries, etc.
+
+### Available Simulated Drones
+- `drone_001` at `192.168.10.1`
+- `drone_002` at `192.168.10.2`
+- `drone_003` at `192.168.10.3`
+- `alpha` at `192.168.10.4`
+- `beta` at `192.168.10.5`
+- `gamma` at `192.168.10.6`
+- `delta` at `192.168.10.7`
+
+See `simulator/README_UDP.md` for detailed simulator documentation.
+
 ## Acknowledgments
 
 - Built on top of [djitellopy](https://github.com/damiafuentes/DJITelloPy)

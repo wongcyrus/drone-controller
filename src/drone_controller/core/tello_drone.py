@@ -512,7 +512,7 @@ class TelloDrone:
 
     def __del__(self):
         """Cleanup when object is destroyed."""
-        if self._is_connected:
+        if hasattr(self, '_is_connected') and self._is_connected:
             self.disconnect()
 
     def _safe_execute_command(self, command_func, *args, **kwargs):
