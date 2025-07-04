@@ -15,7 +15,7 @@ A comprehensive Python package for controlling multiple DJI Tello Talent drones 
 
 ### Supported Formations
 - Line Formation
-- Circle Formation  
+- Circle Formation
 - Diamond Formation
 - V Formation
 - Grid Formation
@@ -31,24 +31,53 @@ A comprehensive Python package for controlling multiple DJI Tello Talent drones 
 
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+This project supports multiple installation methods: [uv](https://github.com/astral-sh/uv) for modern dependency management, or traditional pip for broader compatibility.
 
 ### Prerequisites
 - Python 3.11+
 - DJI Tello Talent drones
 - WiFi network for drone communication
 
-### Setup
+### Setup Options
+
+#### Option 1: Using uv (Recommended)
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd drone-controller
 
-# Install with uv (uv will automatically create virtual environment)
+# Install uv if not already installed
+pip install uv
+
+# Install with uv (automatically creates virtual environment)
 uv sync
 
 # Or install dependencies manually
 uv add djitellopy opencv-python numpy pyyaml
+```
+
+#### Option 2: Using pip (Traditional method)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd drone-controller
+
+# Create virtual environment (recommended)
+python -m venv venv
+venv\Scripts\activate  # On Windows
+# source venv/bin/activate  # On Linux/Mac
+
+# Install dependencies
+pip install djitellopy numpy opencv-python pyyaml
+
+# Or install from requirements
+pip install -r requirements.txt  # If available
+```
+
+#### Option 3: Direct installation
+```bash
+# Install dependencies directly (no virtual environment)
+pip install djitellopy numpy opencv-python pyyaml
 ```
 
 ## Quick Start
@@ -104,6 +133,27 @@ swarm.land_all()
 swarm.shutdown_swarm()
 ```
 
+## VS Code Integration
+
+This project is optimized for VS Code development with the following setup:
+
+### Debugging and Tasks
+- **VS Code Tasks**: Use `python` commands (press `Ctrl+Shift+P` → "Tasks: Run Task")
+- **Debugging**: Press `F5` to debug with breakpoints
+- **Integrated Terminal**: Use `uv` commands directly in the terminal
+
+### Quick Commands in VS Code Terminal
+```bash
+# Using uv (recommended for package management)
+uv run main.py --mode single --demo
+uv run main.py --mode swarm --demo
+uv sync  # Install/update dependencies
+
+# Using python directly (works in tasks and debugging)
+python main.py --mode single --demo
+python main.py --mode swarm --demo
+```
+
 ## Command Line Interface
 
 ### Single Drone Mode
@@ -140,7 +190,7 @@ drones:
     connection_timeout: 10.0
     max_speed: 50
     video_enabled: false
-  
+
   drone_001:
     ip_address: "192.168.10.1"
     video_enabled: true
@@ -259,6 +309,22 @@ uv run -m pytest tests/
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Troubleshooting
+
+### Installation Issues
+
+**"uv is not recognized as a command"**
+- Use Option 2 (pip) or Option 3 (direct installation) from the Installation section
+- Or install uv first: `pip install uv`
+- Alternatively, use the official installer: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
+
+**PowerShell Execution Policy Error**
+```powershell
+Set-ExecutionPolicy RemoteSigned -scope CurrentUser
+```
+
+**Python Version Issues**
+- Ensure you have Python 3.11+ installed: `python --version`
+- Update Python if necessary
 
 ### Common Issues
 

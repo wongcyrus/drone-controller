@@ -1,20 +1,90 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "Run Single Drone Demo",
-			"type": "shell",
-			"command": "uv",
-			"args": [
-				"run",
-				"main.py",
-				"--mode",
-				"single",
-				"--demo"
-			],
-			"group": "build",
-			"isBackground": false,
-			"problemMatcher": []
-		}
-	]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Single Drone Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "single",
+                "--demo"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Run Swarm Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "swarm",
+                "--demo"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Run Interactive Single Mode",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "single"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Install Dependencies",
+            "type": "shell",
+            "command": "pip",
+            "args": [
+                "install",
+                "djitellopy",
+                "numpy",
+                "opencv-python",
+                "pyyaml"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m",
+                "pytest",
+                "tests/",
+                "-v"
+            ],
+            "group": "test",
+            "isBackground": false,
+            "problemMatcher": []
+        }
+    ]
 }

@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.autopep8",
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json"
+    ]
+}
