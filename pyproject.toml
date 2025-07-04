@@ -1,11 +1,11 @@
 [project]
 name = "drone-controller"
 version = "0.1.0"
-description = "Multi-robot Tello Talent drone control system with formation flying and swarm coordination"
+description = "Multi-robot Tello Talent drone control system with formation flying and swarm coordination Server."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "Drone Controller Project", email = "example@example.com"}
+    {name = "Drone Controller Project", email = "cywong@vtc.edu.hk"}
 ]
 keywords = ["drone", "tello", "robotics", "swarm", "formation", "multi-robot"]
 classifiers = [
