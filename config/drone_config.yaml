@@ -7,18 +7,18 @@ drones:
     command_timeout: 5.0
     max_speed: 50
     video_enabled: false
-    
+
   # Example drone configurations
   # Uncomment and modify IP addresses as needed
-  # drone_001:
-  #   ip_address: "192.168.10.1"
-  #   video_enabled: true
-  #   max_speed: 40
-  #   
-  # drone_002:
-  #   ip_address: "192.168.10.2" 
-  #   video_enabled: true
-  #   max_speed: 40
+  drone_001:
+    ip_address: "192.168.137.21"
+    video_enabled: true
+    max_speed: 40
+
+  drone_002:
+    ip_address: "192.168.137.22"
+    video_enabled: true
+    max_speed: 40
   #
   # drone_003:
   #   ip_address: "192.168.10.3"
@@ -31,7 +31,7 @@ swarms:
     max_drones: 10
     takeoff_stagger_delay: 1.0
     landing_stagger_delay: 0.5
-    
+
   demo_swarm:
     max_drones: 5
     takeoff_stagger_delay: 2.0
@@ -42,22 +42,22 @@ formations:
   line:
     spacing: 150
     orientation: 0
-    
+
   circle:
     radius: 200
-    
+
   diamond:
     size: 200
-    
+
   v_formation:
     spacing: 150
     angle: 45
-    
+
   grid_2x2:
     rows: 2
     cols: 2
     spacing: 150
-    
+
   # Custom formation example
   triangle:
     type: custom
@@ -80,7 +80,7 @@ logging:
   level: "INFO"              # DEBUG, INFO, WARNING, ERROR, CRITICAL
   log_to_file: true
   log_directory: "logs"
-  
+
 # Mission parameters
 missions:
   default_mission_timeout: 300    # Default mission timeout (seconds)

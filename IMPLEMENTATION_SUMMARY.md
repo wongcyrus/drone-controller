@@ -4,6 +4,13 @@
 
 I've successfully implemented explicit control over whether to use real drones or the simulator in your drone controller application. This gives you full control over the execution mode regardless of simulator availability.
 
+## Configuration Loading
+
+### Default Configuration
+- **Swarm mode now automatically loads from `config/drone_config.yaml` by default**
+- **Fallback**: If the YAML file is not found, uses hardcoded defaults
+- **Explicit config**: Can still specify a custom config file with `--config`
+
 ## New Command-Line Arguments
 
 ### Primary Options

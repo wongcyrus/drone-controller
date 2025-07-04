@@ -75,7 +75,13 @@ def single_drone_mode(drone_id: str, ip_address: Optional[str] = None):
 
 
 def swarm_mode(config_file: Optional[str] = None):
-    """Run in swarm mode."""
+    """
+    Run in swarm mode.
+
+    Args:
+        config_file: Optional path to configuration file.
+                    If None, loads from config/drone_config.yaml by default.
+    """
     logger = setup_drone_logging("INFO", True, "logs")
     logger.info("Starting swarm mode")
 
