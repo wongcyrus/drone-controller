@@ -10,20 +10,11 @@
             "cwd": "${workspaceFolder}"
         },
         {
-            "name": "Single Drone Demo",
+            "name": "Swarm ",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
-            "args": ["--mode", "single", "--demo"],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "name": "Swarm Demo",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "args": ["--mode", "swarm", "--demo"],
+            "args": [],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
         }

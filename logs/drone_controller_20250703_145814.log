@@ -1,6 +1,0 @@
-2025-07-03 14:58:14 - drone_controller - INFO - Logging to file: logs/drone_controller_20250703_145814.log
-2025-07-03 14:58:14 - drone_controller - INFO - Starting basic flight demonstration
-2025-07-03 14:58:14 - drone_controller - INFO - Connecting to drone...
-2025-07-03 14:58:35 - drone_controller - ERROR - Failed to connect to drone
-2025-07-03 14:58:35 - drone_controller - INFO - Disconnecting from drone...
-2025-07-03 14:58:35 - drone_controller - INFO - Demonstration complete
