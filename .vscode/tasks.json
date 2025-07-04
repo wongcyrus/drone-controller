@@ -85,6 +85,144 @@
             "group": "test",
             "isBackground": false,
             "problemMatcher": []
+        },
+        {
+            "label": "Start 3D Simulator",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--simulator"
+            ],
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Simulator Basic Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "simulator/simulator_bridge.py",
+                "basic"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Simulator Swarm Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "simulator/simulator_bridge.py",
+                "swarm"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Force Simulator Single Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "single",
+                "--demo",
+                "--use-simulator"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Force Real Drone Single Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "single",
+                "--demo",
+                "--use-real"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Force Simulator Swarm Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "swarm",
+                "--demo",
+                "--use-simulator"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Force Real Drone Swarm Demo",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "main.py",
+                "--mode",
+                "swarm",
+                "--demo",
+                "--use-real"
+            ],
+            "group": "build",
+            "isBackground": false,
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
         }
     ]
 }

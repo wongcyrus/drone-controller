@@ -81,9 +81,14 @@ def swarm_mode(config_file: Optional[str] = None):
 
     # Load configuration
     config = DroneConfig(config_file)
+    swarm_config = config.get_swarm_config()
 
     swarm = SwarmController("main_swarm")
     formation_mgr = FormationManager("main_formation")
+
+    # Apply swarm configuration
+    if swarm_config:
+        swarm.set_formation_config(swarm_config)
 
     try:
         print("\nSwarm Controller Interactive Mode")
@@ -108,6 +113,11 @@ def swarm_mode(config_file: Optional[str] = None):
                     parts = command.split()
                     drone_id = parts[1] if len(parts) > 1 else "drone_001"
                     ip_addr = parts[2] if len(parts) > 2 else None
+
+                    # Use configuration for drone settings if no IP provided
+                    if not ip_addr:
+                        drone_config_data = config.get_drone_config(drone_id)
+                        ip_addr = drone_config_data.get("ip_address")
 
                     if swarm.add_drone(drone_id, ip_addr):
                         drone = swarm.drones[drone_id]
@@ -147,14 +157,22 @@ def swarm_mode(config_file: Optional[str] = None):
                     parts = command.split()
                     formation_type = parts[1] if len(parts) > 1 else "line"
 
+                    # Get formation configuration
+                    formation_config_data = config.get_formation_config(formation_type)
+
                     if formation_type == "line":
-                        formation_mgr.create_line_formation()
+                        spacing = formation_config_data.get("spacing", 150)
+                        formation_mgr.create_line_formation(spacing)
                     elif formation_type == "circle":
-                        formation_mgr.create_circle_formation()
+                        radius = formation_config_data.get("radius", 200)
+                        formation_mgr.create_circle_formation(radius)
                     elif formation_type == "diamond":
-                        formation_mgr.create_diamond_formation()
+                        size = formation_config_data.get("size", 200)
+                        formation_mgr.create_diamond_formation(size)
                     elif formation_type == "v":
-                        formation_mgr.create_v_formation()
+                        spacing = formation_config_data.get("spacing", 150)
+                        angle = formation_config_data.get("angle", 45)
+                        formation_mgr.create_v_formation(spacing, angle)
                     else:
                         print("Unknown formation type")
                         continue
@@ -208,24 +226,107 @@ def main():
     parser.add_argument(
         "--demo", action="store_true", help="Run demonstration sequence"
     )
+    parser.add_argument(
+        "--simulator", action="store_true", help="Start 3D web simulator"
+    )
+    parser.add_argument(
+        "--use-simulator", action="store_true",
+        help="Force use of simulator instead of real drones"
+    )
+    parser.add_argument(
+        "--use-real", action="store_true",
+        help="Force use of real drones instead of simulator"
+    )
 
     args = parser.parse_args()
+
+    # Validate conflicting arguments
+    if args.use_simulator and args.use_real:
+        print("Error: Cannot specify both --use-simulator and --use-real")
+        return
+
+    if args.simulator:
+        print("Starting 3D Drone Simulator...")
+        try:
+            from simulator.simulator_bridge import start_simulator
+            start_simulator()
+        except ImportError as e:
+            print(f"Failed to start simulator: {e}")
+            print("Please ensure all simulator dependencies are installed.")
+        return
+
+    # Determine whether to use simulator or real drones
+    use_simulator = args.use_simulator
+    use_real = args.use_real
+
+    # If neither explicitly specified, choose based on mode and availability
+    if not use_simulator and not use_real:
+        if args.demo:
+            # For demos, prefer simulator if available
+            try:
+                import simulator.simulator_bridge  # noqa: F401
+                use_simulator = True
+                print("Simulator available - using simulator for demo")
+            except ImportError:
+                use_real = True
+                print("Simulator not available - using real drones for demo")
+        else:
+            # For interactive mode, default to real drones
+            use_real = True
+            print("Interactive mode - using real drones")
+            print("(use --use-simulator to force simulator)")
 
     if args.demo:
         print("Running demonstration...")
         if args.mode == "single":
-            from examples.basic_flight import basic_flight_demo
-
-            basic_flight_demo()
-        else:
-            from examples.swarm_formation_demo import swarm_formation_demo
-
-            swarm_formation_demo()
+            if use_simulator:
+                try:
+                    from simulator.simulator_bridge import (
+                        run_basic_flight_demo
+                    )
+                    print("Starting 3D simulator demo...")
+                    run_basic_flight_demo()
+                except (ImportError, AttributeError):
+                    print("Simulator not available, using real drone...")
+                    from examples.basic_flight import basic_flight_demo
+                    basic_flight_demo()
+            else:
+                print("Running real drone demo...")
+                from examples.basic_flight import basic_flight_demo
+                basic_flight_demo()
+        else:  # swarm mode
+            if use_simulator:
+                try:
+                    from simulator.simulator_bridge import (
+                        run_swarm_formation_demo
+                    )
+                    print("Starting 3D swarm simulator demo...")
+                    run_swarm_formation_demo()
+                except ImportError:
+                    print("Simulator not available, using real drone...")
+                    from examples.swarm_formation_demo import (
+                        swarm_formation_demo
+                    )
+                    swarm_formation_demo()
+            else:
+                print("Running real drone swarm demo...")
+                from examples.swarm_formation_demo import swarm_formation_demo
+                swarm_formation_demo()
     else:
         if args.mode == "single":
-            single_drone_mode(args.drone_id, args.ip)
+            if use_simulator:
+                print("Starting single drone simulator mode...")
+                print("Interactive simulator mode not yet implemented.")
+                print("Use --demo flag for simulator demonstrations.")
+            else:
+                single_drone_mode(args.drone_id, args.ip)
         else:
-            swarm_mode(args.config)
+            if use_simulator:
+                print("Starting swarm simulator mode...")
+                print("Interactive simulator swarm mode not yet implemented.")
+                print("Use --demo flag for simulator demonstrations.")
+            else:
+                swarm_mode(args.config)
 
 
 if __name__ == "__main__":

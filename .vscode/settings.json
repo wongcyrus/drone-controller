@@ -4,7 +4,10 @@
     "python.terminal.activateEnvironment": true,
     "python.analysis.autoImportCompletions": true,
     "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.extraPaths": ["./src"],
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/simulator"
+    ],
     "python.analysis.autoSearchPaths": true,
 
     // File Management
@@ -31,4 +34,20 @@
 
     // Note: Use 'uv' commands directly in the integrated terminal
     // VS Code tasks and debugging use 'python' for better compatibility
+
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+        "terminal.integrated.env.windows": {
+        "PATH": "${env:PATH};${env:USERPROFILE}\\.local\\bin"
+    },
+    "python.terminal.executeInFileDir": true,
+    "terminal.integrated.profiles.windows": {
+        "PowerShell with UV": {
+            "source": "PowerShell",
+            "env": {
+                "PATH": "${env:PATH};${env:USERPROFILE}\\.local\\bin"
+            }
+        }
+    },
 }
