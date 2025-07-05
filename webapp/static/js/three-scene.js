@@ -182,17 +182,7 @@ class ThreeScene {
         led.name = 'status_led';
         group.add(led);
 
-        // Trail (for movement visualization)
-        const trailGeometry = new THREE.BufferGeometry();
-        const trailMaterial = new THREE.LineBasicMaterial({
-            color: 0x4fc3f7,
-            transparent: true,
-            opacity: 0.6
-        });
-        const trail = new THREE.Line(trailGeometry, trailMaterial);
-        trail.name = 'trail';
-        trail.userData = { positions: [] };
-        group.add(trail);
+
 
         return group;
     }
@@ -284,9 +274,6 @@ class ThreeScene {
 
         // Animate propellers based on height (flying state)
         this.animatePropellers(drone, state.h > 0);
-
-        // Update trail
-        this.updateTrail(drone);
     }
 
     animatePropellers(drone, isFlying) {
@@ -454,31 +441,7 @@ class ThreeScene {
         return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     }
 
-    updateTrail(drone) {
-        const trail = drone.children.find(child => child.name === 'trail');
-        if (!trail) return;
 
-        const positions = trail.userData.positions;
-        const currentPos = drone.position.clone();
-
-        // Add current position to trail
-        positions.push(currentPos.x, currentPos.y, currentPos.z);
-
-        // Limit trail length
-        const maxTrailPoints = 50;
-        if (positions.length > maxTrailPoints * 3) {
-            positions.splice(0, 3); // Remove oldest point
-        }
-
-        // Update trail geometry
-        if (positions.length >= 6) { // At least 2 points
-            trail.geometry.setAttribute('position',
-                new THREE.Float32BufferAttribute(positions, 3));
-            trail.visible = true;
-        } else {
-            trail.visible = false;
-        }
-    }
 
     animateCommand(droneId, command) {
         const drone = this.drones.get(droneId);
@@ -573,13 +536,6 @@ class ThreeScene {
         this.animateToRotation(drone, 'y', 0);
         this.animateToRotation(drone, 'z', 0);
 
-        // Clear trail
-        const trail = drone.children.find(child => child.name === 'trail');
-        if (trail) {
-            trail.userData.positions = [];
-            trail.visible = false;
-        }
-
         // Reset LED to green
         const statusLed = drone.children.find(child => child.name === 'status_led');
         if (statusLed) {
@@ -608,14 +564,6 @@ class ThreeScene {
         // Reset position and rotation to zero immediately
         drone.position.set(0, 0, 0);
         drone.rotation.set(0, 0, 0);
-
-        // Remove trail/tracking line completely
-        const trail = drone.children.find(child => child.name === 'trail');
-        if (trail) {
-            drone.remove(trail);
-            trail.geometry.dispose();
-            trail.material.dispose();
-        }
 
         // Reset LED to green
         const statusLed = drone.children.find(child => child.name === 'status_led');
