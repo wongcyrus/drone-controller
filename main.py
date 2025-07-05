@@ -94,18 +94,84 @@ def main():
 
         print("Taking off...")
         swarm.takeoff()
-        time.sleep(2)
+        time.sleep(3)
+
+        print("=== DRONE MOVEMENT DEMO ===")
 
         print("Moving up...")
-        # run in parallel on all tellos
-        swarm.move_up(100)
-        swarm.move_forward(100)
+        swarm.move_up(50)
         time.sleep(2)
+
         print("Moving down...")
-        swarm.move_down(100)
+        swarm.move_down(30)
         time.sleep(2)
+
+        print("Moving forward...")
+        swarm.move_forward(50)
+        time.sleep(2)
+
+        print("Moving back...")
+        swarm.move_back(50)
+        time.sleep(2)
+
+        print("Moving left...")
+        swarm.move_left(50)
+        time.sleep(2)
+
         print("Moving right...")
-        swarm.move_right(100)
+        swarm.move_right(50)
+        time.sleep(2)
+
+        print("Rotating clockwise...")
+        swarm.rotate_clockwise(90)
+        time.sleep(2)
+
+        print("Rotating counter-clockwise...")
+        swarm.rotate_counter_clockwise(90)
+        time.sleep(2)
+
+        print("Performing flip forward...")
+        try:
+            # Check battery level first
+            for i, tello in enumerate(swarm.tellos):
+                try:
+                    battery = tello.get_battery()
+                    print(f"Drone {i+1} battery: {battery}%")
+                    if battery < 50:
+                        print(f"Warning: Drone {i+1} battery is low ({battery}%).")
+                        print("Flips may not work with low battery.")
+                except Exception as e:  # pylint: disable=broad-except
+                    print(f"Could not get battery level for drone {i+1}: {e}")
+
+            # Ensure adequate height for flip (move up if needed)
+            print("Ensuring adequate height for flip...")
+            swarm.move_up(30)  # Add some extra height
+            time.sleep(2)
+
+            # Perform the flip with a longer wait time
+            print("Executing flip...")
+            swarm.flip_forward()
+            time.sleep(5)  # Increased wait time for flip completion
+            print("Flip completed successfully!")
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"Flip command failed: {e}")
+            print("Possible reasons:")
+            print("- Insufficient battery level (needs >50%)")
+            print("- Not enough height (needs ~1.5m minimum)")
+            print("- Drone model doesn't support flips")
+            print("- Recent command interference")
+            print("Continuing with remaining commands...")
+
+        print("Moving in a square pattern...")
+        for i in range(4):
+            print(f"Square side {i+1}/4...")
+            swarm.move_forward(60)
+            time.sleep(1.5)
+            swarm.rotate_clockwise(90)
+            time.sleep(1.5)
+
+        print("Final hover...")
         time.sleep(2)
 
         print("Landing...")
