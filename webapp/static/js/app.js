@@ -67,6 +67,8 @@ class DroneSimulatorApp {
         };
 
         this.droneSimulator.onDroneStateUpdate = (droneId, state) => {
+            // Mark this as a JavaScript simulator update
+            state._isJSUpdate = true;
             this.threeScene.updateDroneState(droneId, state);
         };
     }
@@ -219,7 +221,12 @@ class DroneSimulatorApp {
                 break;
 
             case 'state':
-                this.droneSimulator.updateDroneState(data.id, data.state);
+                // Filter out position data from server updates - only use non-position state
+                const filteredState = { ...data.state };
+                delete filteredState.x;
+                delete filteredState.y;
+                delete filteredState.h;
+                this.droneSimulator.updateDroneState(data.id, filteredState);
                 break;
         }
     }
@@ -228,12 +235,19 @@ class DroneSimulatorApp {
         const { drone_id, command, response, timestamp } = result;
 
         this.logToConsole(`[${drone_id}] ${command}`, 'command');
-        
+
         // Handle undefined/null response
         const responseText = response || 'no response';
         const responseType = (response && response.startsWith && response.startsWith('error')) ? 'error' : 'response';
-        
+
         this.logToConsole(`[${drone_id}] ${responseText}`, responseType);
+
+        // If command was successful, also simulate it in the JavaScript simulator
+        // This ensures position updates happen even when using WebSocket
+        if (response === 'ok') {
+            console.log(`🔄 Simulating command in JS: ${command} for drone ${drone_id}`);
+            this.droneSimulator.processCommand(drone_id, command);
+        }
 
         // Animate command in 3D scene if it's a movement command
         if (['takeoff', 'land', 'flip'].some(cmd => command.includes(cmd))) {
@@ -404,10 +418,16 @@ class DroneSimulatorApp {
 
         this.logToConsole(`Resetting drone: ${this.selectedDroneId}`, 'info');
 
-        // SIMPLE: Reset 3D position immediately
+        // 1. Reset 3D position immediately
         this.threeScene.resetDroneToOrigin(this.selectedDroneId);
 
-        // SIMPLE: Send reset command to backend
+        // 2. Reset drone simulator state immediately
+        const drone = this.droneSimulator.getDrone(this.selectedDroneId);
+        if (drone) {
+            this.droneSimulator.simulateReset(this.selectedDroneId);
+        }
+
+        // 3. Send reset command to backend (server no longer changes position)
         this.sendCommand('reset');
 
         this.logToConsole(`Drone ${this.selectedDroneId} reset complete`, 'success');

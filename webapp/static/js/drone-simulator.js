@@ -244,6 +244,39 @@ class DroneSimulator {
         this.updateDroneState(droneId, drone.state);
     }
 
+    simulateReset(droneId) {
+        const drone = this.drones.get(droneId);
+        if (!drone) return;
+
+        // Reset drone to initial state - same as Python backend
+        drone.flying = false;
+        drone.state = {
+            mid: -1,
+            x: 0,
+            y: 0,
+            z: 0,
+            pitch: 0,
+            roll: 0,
+            yaw: 0,
+            vgx: 0,
+            vgy: 0,
+            vgz: 0,
+            templ: 20,
+            temph: 25,
+            tof: 10,
+            h: 0,
+            bat: 100,
+            baro: 1013.25,
+            time: 0,
+            agx: 0.0,
+            agy: 0.0,
+            agz: -1000.0
+        };
+
+        console.log(`🔄 Virtual drone ${droneId} reset to initial state`);
+        this.updateDroneState(droneId, drone.state);
+    }
+
     processCommand(droneId, command) {
         const drone = this.drones.get(droneId);
         if (!drone) {
@@ -280,6 +313,10 @@ class DroneSimulator {
 
                 case 'emergency':
                     this.simulateEmergency(droneId);
+                    break;
+
+                case 'reset':
+                    this.simulateReset(droneId);
                     break;
 
                 case 'up':

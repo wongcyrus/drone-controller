@@ -265,6 +265,11 @@ class MockTelloDrone:
             if args and args[0].isdigit():
                 distance = int(args[0])
                 if 20 <= distance <= 500:
+                    # Check if drone is flying for movements (except up)
+                    flight_required_cmds = ['left', 'right', 'forward', 'back',
+                                            'down']
+                    if cmd in flight_required_cmds and not self.is_flying:
+                        return 'error Not flying'
                     self._simulate_movement(cmd, distance)
                     return 'ok'
                 else:
@@ -286,7 +291,8 @@ class MockTelloDrone:
         elif cmd == 'takeoff':
             if not self.is_flying:
                 self.is_flying = True
-                self.state['h'] = 50  # Default takeoff height
+                # DISABLED: Position handled by JavaScript - keep h at 0
+                self.state['h'] = 0
                 # Predictable battery drain (3% for takeoff)
                 self.state['bat'] = max(0, self.state['bat'] - 3)
                 # Simulate takeoff delay
@@ -299,6 +305,7 @@ class MockTelloDrone:
         elif cmd == 'land':
             if self.is_flying:
                 self.is_flying = False
+                # DISABLED: Position handled by JavaScript - keep h at 0
                 self.state['h'] = 0
                 # Predictable battery drain (1% for landing)
                 self.state['bat'] = max(0, self.state['bat'] - 1)
@@ -318,6 +325,7 @@ class MockTelloDrone:
         # Handle emergency stop
         elif cmd == 'emergency':
             self.is_flying = False
+            # DISABLED: Position handled by JavaScript - keep h at 0
             self.state['h'] = 0
             return 'ok'
 
@@ -328,11 +336,11 @@ class MockTelloDrone:
             self.sdk_mode = False
             self.stream_on = False
 
-            # Reset ALL state to initial values
+            # Reset ALL state to initial values - KEEP POSITION AT 0 ALWAYS
             self.state = {
                 'mid': -1,     # Mission pad ID
-                'x': 0,        # Mission pad X
-                'y': 0,        # Mission pad Y
+                'x': 0,        # Mission pad X - ALWAYS 0
+                'y': 0,        # Mission pad Y - ALWAYS 0
                 'z': 0,        # Mission pad Z
                 'pitch': 0,    # Pitch angle
                 'roll': 0,     # Roll angle
@@ -343,7 +351,7 @@ class MockTelloDrone:
                 'templ': 20,   # Temperature low
                 'temph': 25,   # Temperature high
                 'tof': 10,     # Time of flight distance
-                'h': 0,        # Height
+                'h': 0,        # Height - ALWAYS 0
                 'bat': 100,    # Battery percentage
                 'baro': 1013.25,  # Barometer
                 'time': 0,     # Flight time
@@ -352,8 +360,11 @@ class MockTelloDrone:
                 'agz': -1000.0  # Acceleration Z (gravity)
             }
 
-            self.logger.info(f"   After reset - x:{self.state['x']}, y:{self.state['y']}, bat:{self.state['bat']}, time:{self.state['time']}")
-            self.logger.info(f"🔄 RESET: {self.name} - everything reset to initial state")
+            self.logger.info("Reset: x:%s, y:%s, h:%s, bat:%s, time:%s",
+                           self.state['x'], self.state['y'], self.state['h'],
+                           self.state['bat'], self.state['time'])
+            self.logger.info("RESET: %s - everything reset to initial state",
+                           self.name)
 
             # Force state broadcast
             self._force_state_broadcast()
@@ -401,10 +412,11 @@ class MockTelloDrone:
                     if (-500 <= x <= 500 and -500 <= y <= 500 and
                             -500 <= z <= 500 and 10 <= speed <= 100):
                         if self.is_flying:
-                            # Simulate movement to coordinates
-                            self.state['x'] = x
-                            self.state['y'] = y
-                            self.state['h'] = max(0, z)
+                            # DISABLED: Let JavaScript handle position
+                            # Keep server position at 0,0,0
+                            self.state['x'] = 0
+                            self.state['y'] = 0
+                            self.state['h'] = 0
                             return 'ok'
                         else:
                             return 'error Not flying'
@@ -510,22 +522,25 @@ class MockTelloDrone:
             return 'error Unknown command'
 
     def _simulate_movement(self, direction: str, distance: int):
-        """Simulate movement by updating drone state"""
-        # Update position based on direction
+        """Simulate movement - POSITION DISABLED (handled by JavaScript)"""
+        # DISABLED: Let JavaScript handle all position tracking
+        # Server only handles non-position state like flying status and battery
+
         if direction == 'up':
-            self.state['h'] = min(self.state['h'] + distance, 500)
+            # Mark as flying for any upward movement
+            self.is_flying = True
         elif direction == 'down':
-            self.state['h'] = max(self.state['h'] - distance, 0)
-            if self.state['h'] == 0:
+            # Only land if moving down very significantly (reaching ground)
+            # In real scenarios, this would depend on current height
+            # For simulation, assume large down movements (>150cm) land
+            if distance >= 150:  # Large down movement lands the drone
                 self.is_flying = False
-        elif direction == 'left':
-            self.state['x'] = max(self.state['x'] - distance, -500)
-        elif direction == 'right':
-            self.state['x'] = min(self.state['x'] + distance, 500)
-        elif direction == 'forward':
-            self.state['y'] = min(self.state['y'] + distance, 500)
-        elif direction == 'back':
-            self.state['y'] = max(self.state['y'] - distance, -500)
+        # All other directions - no flying state changes
+
+        # Keep all position coordinates at 0 - JavaScript handles position
+        self.state['x'] = 0
+        self.state['y'] = 0
+        self.state['h'] = 0  # Keep height at 0, use is_flying for status
 
         # Predictable battery drain (1% per movement command)
         self.state['bat'] = max(0, self.state['bat'] - 1)

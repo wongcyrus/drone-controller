@@ -131,7 +131,7 @@ class ThreeScene {
 
         // Main body - upper half sphere (dome)
         const bodyGeometry = new THREE.SphereGeometry(2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-        const bodyMaterial = new THREE.MeshLambertMaterial({ 
+        const bodyMaterial = new THREE.MeshLambertMaterial({
             color: 0x2196F3,
             side: THREE.DoubleSide
         });
@@ -205,7 +205,7 @@ class ThreeScene {
 
         const droneModel = this.createDroneModel(droneId);
         droneModel.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-        
+
         // Initialize userData for animation tracking
         droneModel.userData = {
             animationId: null,
@@ -237,20 +237,24 @@ class ThreeScene {
             drone.userData.animationId = null;
         }
 
-        // Update position with smooth animation (convert from cm to meters for better scale)
-        const scale = 0.1; // 1cm = 0.1 units in 3D space
-        
-        // Calculate target positions
-        const targetPosition = {
-            x: state.x !== undefined ? state.x * scale : drone.position.x,
-            y: state.h !== undefined ? state.h * scale : drone.position.y,
-            z: state.y !== undefined ? state.y * scale : drone.position.z
-        };
+        // Check if this is a JavaScript simulator update vs server update
+        const isJSUpdate = state._isJSUpdate === true;
 
-        // Animate to target position smoothly
-        this.animateToPosition(drone, targetPosition);
+        if (isJSUpdate) {
+            // Handle position updates from JavaScript simulator
+            const targetPosition = {
+                x: state.x !== undefined ? state.x : drone.position.x,
+                y: state.h !== undefined ? state.h * 0.1 : drone.position.y, // Height scaling
+                z: state.y !== undefined ? state.y : drone.position.z
+            };
 
-        // Update rotation with smooth transitions
+            // Animate to target position smoothly
+            this.animateToPosition(drone, targetPosition);
+
+            console.log(`JS Update: Moving drone ${droneId} to position:`, targetPosition);
+        }
+
+        // Always handle rotation and LED updates (from both server and JS)
         if (state.yaw !== undefined) {
             this.animateToRotation(drone, 'y', THREE.MathUtils.degToRad(state.yaw));
         }
@@ -308,7 +312,7 @@ class ThreeScene {
 
         // Check if we need to animate (if position changed significantly)
         const threshold = 0.01;
-        const needsAnimation = 
+        const needsAnimation =
             Math.abs(targetPosition.x - startPosition.x) > threshold ||
             Math.abs(targetPosition.y - startPosition.y) > threshold ||
             Math.abs(targetPosition.z - startPosition.z) > threshold;
@@ -350,7 +354,7 @@ class ThreeScene {
 
     animateToRotation(drone, axis, targetRotation) {
         const currentRotation = drone.rotation[axis];
-        
+
         // Check if we need to animate
         const threshold = 0.01;
         if (Math.abs(targetRotation - currentRotation) < threshold) {
@@ -420,7 +424,7 @@ class ThreeScene {
 
     animateToRotationFast(drone, axis, targetRotation, duration = 0.3) {
         const currentRotation = drone.rotation[axis];
-        
+
         if (Math.abs(targetRotation - currentRotation) < 0.01) {
             drone.rotation[axis] = targetRotation;
             return;
@@ -485,7 +489,7 @@ class ThreeScene {
             // Just visual effect, no position changes
             this.showTakeoffEffect(drone);
         } else if (command === 'land') {
-            // Just visual effect, no position changes  
+            // Just visual effect, no position changes
             this.showLandingEffect(drone);
         } else if (command.includes('flip')) {
             this.animateFlip(drone);
@@ -496,7 +500,7 @@ class ThreeScene {
         // Brief visual effect without changing position
         const originalScale = drone.scale.clone();
         drone.scale.multiplyScalar(1.1);
-        
+
         setTimeout(() => {
             drone.scale.copy(originalScale);
         }, 200);
@@ -506,7 +510,7 @@ class ThreeScene {
         // Brief visual effect without changing position
         const originalScale = drone.scale.clone();
         drone.scale.multiplyScalar(0.9);
-        
+
         setTimeout(() => {
             drone.scale.copy(originalScale);
         }, 200);
@@ -601,7 +605,7 @@ class ThreeScene {
             drone.userData.animationId = null;
         }
 
-        // Reset position and rotation to zero
+        // Reset position and rotation to zero immediately
         drone.position.set(0, 0, 0);
         drone.rotation.set(0, 0, 0);
 
