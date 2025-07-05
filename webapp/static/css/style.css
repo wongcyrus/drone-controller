@@ -408,3 +408,12 @@ main {
     background: #ed8936;
     animation: pulse 1s infinite;
 }
+/* Reset Button */
+.reset-btn {
+    background: #e53e3e !important;
+    color: white;
+}
+
+.reset-btn:hover {
+    background: #c53030 !important;
+}

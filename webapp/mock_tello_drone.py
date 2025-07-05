@@ -11,7 +11,6 @@ import socket
 import threading
 import time
 import logging
-import random
 
 # Configure logging
 logging.basicConfig(
@@ -89,6 +88,7 @@ class MockTelloDrone:
             'streamon': 'ok',
             'streamoff': 'ok',
             'emergency': 'ok',
+            'reset': 'ok',
             'up': 'ok',
             'down': 'ok',
             'left': 'ok',
@@ -117,7 +117,7 @@ class MockTelloDrone:
             'time?': lambda: str(self.state['time']),  # Flight time in seconds
             'wifi?': lambda: str(90),  # WiFi SNR
             'sdk?': lambda: '"2.0"',  # SDK version (note: quoted string)
-            'sn?': lambda: f'"TELLO{random.randint(1000000, 9999999)}"',  # Serial number (quoted)
+            'sn?': lambda: f'"TELLO{hash(self.name) % 10000000:07d}"',  # Serial number (quoted, deterministic)
             'height?': lambda: str(self.state['h']),  # Height in cm
             'temp?': lambda: f"{int(self.state['templ'])}~{int(self.state['temph'])}",  # Temperature range
             'attitude?': lambda: (
@@ -287,6 +287,8 @@ class MockTelloDrone:
             if not self.is_flying:
                 self.is_flying = True
                 self.state['h'] = 50  # Default takeoff height
+                # Predictable battery drain (3% for takeoff)
+                self.state['bat'] = max(0, self.state['bat'] - 3)
                 # Simulate takeoff delay
                 time.sleep(0.5)
                 return 'ok'
@@ -298,6 +300,8 @@ class MockTelloDrone:
             if self.is_flying:
                 self.is_flying = False
                 self.state['h'] = 0
+                # Predictable battery drain (1% for landing)
+                self.state['bat'] = max(0, self.state['bat'] - 1)
                 return 'ok'
             else:
                 return 'error Not flying'
@@ -315,6 +319,19 @@ class MockTelloDrone:
         elif cmd == 'emergency':
             self.is_flying = False
             self.state['h'] = 0
+            return 'ok'
+
+        # Handle reset command
+        elif cmd == 'reset':
+            # Reset drone to initial state
+            self.is_flying = False
+            self.state.update({
+                'x': 0, 'y': 0, 'z': 0, 'h': 0,
+                'pitch': 0, 'roll': 0, 'yaw': 0,
+                'vgx': 0, 'vgy': 0, 'vgz': 0,
+                'bat': 100,
+                'time': 0
+            })
             return 'ok'
 
         # Handle speed setting
@@ -359,6 +376,8 @@ class MockTelloDrone:
                             -500 <= z <= 500 and 10 <= speed <= 100):
                         if self.is_flying:
                             # Simulate movement to coordinates
+                            self.state['x'] = x
+                            self.state['y'] = y
                             self.state['h'] = max(0, z)
                             return 'ok'
                         else:
@@ -466,18 +485,24 @@ class MockTelloDrone:
 
     def _simulate_movement(self, direction: str, distance: int):
         """Simulate movement by updating drone state"""
-        # Update height for vertical movements
+        # Update position based on direction
         if direction == 'up':
             self.state['h'] = min(self.state['h'] + distance, 500)
         elif direction == 'down':
             self.state['h'] = max(self.state['h'] - distance, 0)
             if self.state['h'] == 0:
                 self.is_flying = False
+        elif direction == 'left':
+            self.state['x'] = max(self.state['x'] - distance, -500)
+        elif direction == 'right':
+            self.state['x'] = min(self.state['x'] + distance, 500)
+        elif direction == 'forward':
+            self.state['y'] = min(self.state['y'] + distance, 500)
+        elif direction == 'back':
+            self.state['y'] = max(self.state['y'] - distance, -500)
 
-        # Simulate small random variations in other state values
-        self.state['pitch'] += random.randint(-2, 2)
-        self.state['roll'] += random.randint(-2, 2)
-        self.state['bat'] = max(0, self.state['bat'] - random.randint(0, 1))
+        # Predictable battery drain (1% per movement command)
+        self.state['bat'] = max(0, self.state['bat'] - 1)
 
     def _simulate_rotation(self, direction: str, angle: int):
         """Simulate rotation by updating yaw"""
@@ -486,8 +511,8 @@ class MockTelloDrone:
         elif direction == 'ccw':
             self.state['yaw'] = (self.state['yaw'] - angle) % 360
 
-        # Drain battery slightly
-        self.state['bat'] = max(0, self.state['bat'] - random.randint(0, 1))
+        # Predictable battery drain (1% per rotation command)
+        self.state['bat'] = max(0, self.state['bat'] - 1)
 
     def _state_broadcaster(self):
         """Broadcast state information periodically"""
@@ -541,18 +566,9 @@ class MockTelloDrone:
         if self.is_flying:
             self.state['time'] += 1
 
-        # Slowly drain battery
-        if random.randint(1, 100) == 1:  # 1% chance every 0.1s
-            self.state['bat'] = max(0, self.state['bat'] - 1)
-
-        # Add small random variations to simulate sensor noise
-        self.state['baro'] += random.uniform(-0.1, 0.1)
-        self.state['templ'] += random.uniform(-0.5, 0.5)
-        self.state['temph'] += random.uniform(-0.5, 0.5)
-
-        # Keep temperature range realistic
-        self.state['templ'] = max(10, min(40, self.state['templ']))
-        self.state['temph'] = max(self.state['templ'], min(45, self.state['temph']))
+        # Keep temperature and barometer values stable
+        # No random variations - maintain consistent sensor readings
+        # Battery only drains on commands, not over time
 
 
 def main():

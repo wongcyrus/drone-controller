@@ -32,6 +32,8 @@ class EnhancedMockTelloDrone(MockTelloDrone):
         super().__init__(drone_ip, name, command_port)
         self.ws_server = None
         self.webapp_enabled = True
+        self.last_webapp_update = time.time()  # Initialize with current time
+        self.webapp_update_interval = 0.5  # Update webapp every 0.5 seconds instead of 0.1
 
     def start(self):
         """Start the mock drone with WebSocket integration"""
@@ -96,22 +98,40 @@ class EnhancedMockTelloDrone(MockTelloDrone):
 
     def _simulate_movement(self, direction: str, distance: int):
         """Enhanced movement simulation with webapp updates"""
+        self.logger.info(f"🚁 Simulating movement: {direction} {distance}")
         super()._simulate_movement(direction, distance)
-        self.update_webapp_state()
+        self.logger.info(f"📍 New position: x={self.state['x']}, y={self.state['y']}, z={self.state['z']}, h={self.state['h']}")
+        self.update_webapp_state(force=True)  # Force immediate update for commands
 
     def _simulate_rotation(self, direction: str, angle: int):
         """Enhanced rotation simulation with webapp updates"""
-        super()._simulate_rotation(direction, angle)
-        self.update_webapp_state()
+        self.logger.info(f"🔄 Simulating rotation: {direction} {angle}")
+        super()._simulate_rotation(direction, angle)  # Fixed: was using distance instead of angle
+        self.logger.info(f"📐 New orientation: yaw={self.state['yaw']}")
+        self.update_webapp_state(force=True)  # Force immediate update for commands
 
-    def update_webapp_state(self):
-        """Update the webapp with current drone state"""
-        if self.webapp_enabled:
-            try:
-                if ws_server and ws_server.loop and ws_server.loop.is_running():
-                    ws_server.update_drone_state(self.name, self.state.copy())
-            except Exception as e:
-                self.logger.error(f"Failed to update webapp state: {e}")
+    def update_webapp_state(self, force=False):
+        """Update the webapp with current drone state (throttled)"""
+        if not self.webapp_enabled:
+            return
+            
+        current_time = time.time()
+        
+        # Only update if enough time has passed or forced (e.g., from commands)
+        if not force and (current_time - self.last_webapp_update) < self.webapp_update_interval:
+            return
+            
+        try:
+            if ws_server and ws_server.loop and ws_server.loop.is_running():
+                # Only log forced updates (from commands), not periodic ones
+                if force:
+                    self.logger.debug(f"📡 State update sent to webapp (command triggered)")
+                ws_server.update_drone_state(self.name, self.state.copy())
+                self.last_webapp_update = current_time
+            else:
+                self.logger.warning("WebSocket server not available for state update")
+        except Exception as e:
+            self.logger.error(f"Failed to update webapp state: {e}")
 
     def _state_broadcaster(self):
         """Enhanced state broadcaster that also updates webapp"""
@@ -139,8 +159,8 @@ class EnhancedMockTelloDrone(MockTelloDrone):
                 # Update dynamic state values
                 self._update_dynamic_state()
 
-                # Update webapp with new state
-                self.update_webapp_state()
+                # Update webapp with new state (throttled)
+                self.update_webapp_state(force=False)
 
                 # Sleep for 0.1 seconds (10Hz update rate like real Tello)
                 time.sleep(0.1)

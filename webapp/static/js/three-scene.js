@@ -129,12 +129,11 @@ class ThreeScene {
         const group = new THREE.Group();
         group.name = `drone_${droneId}`;
 
-        // Main body (sphere)
-        const bodyGeometry = new THREE.SphereGeometry(2, 16, 12);
-        const bodyMaterial = new THREE.MeshLambertMaterial({
-            color: 0x2196f3,
-            transparent: true,
-            opacity: 0.9
+        // Main body - upper half sphere (dome)
+        const bodyGeometry = new THREE.SphereGeometry(2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        const bodyMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x2196F3,
+            side: THREE.DoubleSide
         });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
@@ -143,52 +142,45 @@ class ThreeScene {
 
         // Propellers
         const propellerPositions = [
-            { x: 3, z: 3 },   // Front right
-            { x: -3, z: 3 },  // Front left
-            { x: 3, z: -3 },  // Back right
-            { x: -3, z: -3 }  // Back left
+            { x: 2.5, z: 2.5 },   // Front right
+            { x: -2.5, z: 2.5 },  // Front left
+            { x: 2.5, z: -2.5 },  // Back right
+            { x: -2.5, z: -2.5 }  // Back left
         ];
 
         propellerPositions.forEach((pos, index) => {
             // Motor
-            const motorGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1);
+            const motorGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.5);
             const motorMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
             const motor = new THREE.Mesh(motorGeometry, motorMaterial);
-            motor.position.set(pos.x, 0.5, pos.z);
+            motor.position.set(pos.x, 0.25, pos.z);
             motor.castShadow = true;
             group.add(motor);
 
             // Propeller blades
-            const bladeGeometry = new THREE.BoxGeometry(4, 0.1, 0.3);
+            const bladeGeometry = new THREE.BoxGeometry(3, 0.05, 0.2);
             const bladeMaterial = new THREE.MeshLambertMaterial({
                 color: 0x666666,
                 transparent: true,
                 opacity: 0.7
             });
             const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-            blade.position.set(pos.x, 1, pos.z);
+            blade.position.set(pos.x, 0.5, pos.z);
             blade.name = `propeller_${index}`;
+            blade.castShadow = true;
             group.add(blade);
         });
 
-        // LED indicators
-        const ledGeometry = new THREE.SphereGeometry(0.2, 8, 6);
-        const frontLedMaterial = new THREE.MeshLambertMaterial({
+        // Simple LED indicator on top
+        const ledGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+        const ledMaterial = new THREE.MeshLambertMaterial({
             color: 0x00ff00,
             emissive: 0x004400
         });
-        const backLedMaterial = new THREE.MeshLambertMaterial({
-            color: 0xff0000,
-            emissive: 0x440000
-        });
-
-        const frontLed = new THREE.Mesh(ledGeometry, frontLedMaterial);
-        frontLed.position.set(0, 0, 2.5);
-        group.add(frontLed);
-
-        const backLed = new THREE.Mesh(ledGeometry, backLedMaterial);
-        backLed.position.set(0, 0, -2.5);
-        group.add(backLed);
+        const led = new THREE.Mesh(ledGeometry, ledMaterial);
+        led.position.set(0, 2, 0); // On top of the dome
+        led.name = 'status_led';
+        group.add(led);
 
         // Trail (for movement visualization)
         const trailGeometry = new THREE.BufferGeometry();
@@ -213,6 +205,12 @@ class ThreeScene {
 
         const droneModel = this.createDroneModel(droneId);
         droneModel.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+        
+        // Initialize userData for animation tracking
+        droneModel.userData = {
+            animationId: null,
+            isStable: true
+        };
 
         this.scene.add(droneModel);
         this.drones.set(droneId, droneModel);
@@ -233,44 +231,54 @@ class ThreeScene {
         const drone = this.drones.get(droneId);
         if (!drone) return;
 
-        // Update position (convert from cm to meters for better scale)
-        const scale = 0.1; // 1cm = 0.1 units in 3D space
-        drone.position.y = (state.h || 0) * scale;
+        // Cancel any ongoing animations to prevent conflicts
+        if (drone.userData && drone.userData.animationId) {
+            cancelAnimationFrame(drone.userData.animationId);
+            drone.userData.animationId = null;
+        }
 
-        // Update rotation
+        // Update position with smooth animation (convert from cm to meters for better scale)
+        const scale = 0.1; // 1cm = 0.1 units in 3D space
+        
+        // Calculate target positions
+        const targetPosition = {
+            x: state.x !== undefined ? state.x * scale : drone.position.x,
+            y: state.h !== undefined ? state.h * scale : drone.position.y,
+            z: state.y !== undefined ? state.y * scale : drone.position.z
+        };
+
+        // Animate to target position smoothly
+        this.animateToPosition(drone, targetPosition);
+
+        // Update rotation with smooth transitions
         if (state.yaw !== undefined) {
-            drone.rotation.y = THREE.MathUtils.degToRad(state.yaw);
+            this.animateToRotation(drone, 'y', THREE.MathUtils.degToRad(state.yaw));
         }
         if (state.pitch !== undefined) {
-            drone.rotation.x = THREE.MathUtils.degToRad(state.pitch);
+            this.animateToRotation(drone, 'x', THREE.MathUtils.degToRad(state.pitch));
         }
         if (state.roll !== undefined) {
-            drone.rotation.z = THREE.MathUtils.degToRad(state.roll);
+            this.animateToRotation(drone, 'z', THREE.MathUtils.degToRad(state.roll));
         }
 
-        // Update LED colors based on battery
+        // Update LED color based on battery
         const battery = state.bat || 100;
-        const frontLed = drone.children.find(child =>
-            child.position.z > 0 && child.geometry instanceof THREE.SphereGeometry
-        );
-        const backLed = drone.children.find(child =>
-            child.position.z < 0 && child.geometry instanceof THREE.SphereGeometry
-        );
+        const statusLed = drone.children.find(child => child.name === 'status_led');
 
-        if (frontLed) {
+        if (statusLed) {
             if (battery > 50) {
-                frontLed.material.color.setHex(0x00ff00);
-                frontLed.material.emissive.setHex(0x004400);
+                statusLed.material.color.setHex(0x00ff00); // Green
+                statusLed.material.emissive.setHex(0x004400);
             } else if (battery > 20) {
-                frontLed.material.color.setHex(0xffff00);
-                frontLed.material.emissive.setHex(0x444400);
+                statusLed.material.color.setHex(0xffff00); // Yellow
+                statusLed.material.emissive.setHex(0x444400);
             } else {
-                frontLed.material.color.setHex(0xff0000);
-                frontLed.material.emissive.setHex(0x440000);
+                statusLed.material.color.setHex(0xff0000); // Red
+                statusLed.material.emissive.setHex(0x440000);
             }
         }
 
-        // Animate propellers if flying
+        // Animate propellers based on height (flying state)
         this.animatePropellers(drone, state.h > 0);
 
         // Update trail
@@ -284,11 +292,96 @@ class ThreeScene {
                     child.rotation.y += 0.5; // Fast rotation when flying
                     child.material.opacity = 0.3; // More transparent when spinning fast
                 } else {
-                    child.rotation.y += 0.01; // Slow rotation when idle
-                    child.material.opacity = 0.7; // More visible when not spinning
+                    child.rotation.y += 0.02; // Very slow rotation when idle
+                    child.material.opacity = 0.7; // More visible when not spinning fast
                 }
             }
         });
+    }
+
+    animateToPosition(drone, targetPosition) {
+        const startPosition = {
+            x: drone.position.x,
+            y: drone.position.y,
+            z: drone.position.z
+        };
+
+        // Check if we need to animate (if position changed significantly)
+        const threshold = 0.01;
+        const needsAnimation = 
+            Math.abs(targetPosition.x - startPosition.x) > threshold ||
+            Math.abs(targetPosition.y - startPosition.y) > threshold ||
+            Math.abs(targetPosition.z - startPosition.z) > threshold;
+
+        if (!needsAnimation) {
+            // Set position directly if change is minimal
+            drone.position.set(targetPosition.x, targetPosition.y, targetPosition.z);
+            return;
+        }
+
+        // Smooth animation to target position
+        let progress = 0;
+        const duration = 0.8; // Animation duration in seconds
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = (currentTime - startTime) / 1000; // Convert to seconds
+            progress = Math.min(elapsed / duration, 1);
+
+            // Use easing function for smooth animation
+            const easeProgress = this.easeInOutCubic(progress);
+
+            // Interpolate position
+            drone.position.x = THREE.MathUtils.lerp(startPosition.x, targetPosition.x, easeProgress);
+            drone.position.y = THREE.MathUtils.lerp(startPosition.y, targetPosition.y, easeProgress);
+            drone.position.z = THREE.MathUtils.lerp(startPosition.z, targetPosition.z, easeProgress);
+
+            if (progress < 1) {
+                drone.userData.animationId = requestAnimationFrame(animate);
+            } else {
+                // Ensure final position is exact
+                drone.position.set(targetPosition.x, targetPosition.y, targetPosition.z);
+                drone.userData.animationId = null;
+            }
+        };
+
+        drone.userData.animationId = requestAnimationFrame(animate);
+    }
+
+    animateToRotation(drone, axis, targetRotation) {
+        const currentRotation = drone.rotation[axis];
+        
+        // Check if we need to animate
+        const threshold = 0.01;
+        if (Math.abs(targetRotation - currentRotation) < threshold) {
+            drone.rotation[axis] = targetRotation;
+            return;
+        }
+
+        // Smooth rotation animation
+        let progress = 0;
+        const duration = 0.5; // Faster rotation animation
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = (currentTime - startTime) / 1000;
+            progress = Math.min(elapsed / duration, 1);
+
+            const easeProgress = this.easeInOutCubic(progress);
+            drone.rotation[axis] = THREE.MathUtils.lerp(currentRotation, targetRotation, easeProgress);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                drone.rotation[axis] = targetRotation;
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }
+
+    easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
     updateTrail(drone) {
@@ -321,41 +414,36 @@ class ThreeScene {
         const drone = this.drones.get(droneId);
         if (!drone) return;
 
-        // Visual feedback for commands
+        // Visual feedback for commands - but don't interfere with position updates
         if (command === 'takeoff') {
-            this.animateTakeoff(drone);
+            // Just visual effect, no position changes
+            this.showTakeoffEffect(drone);
         } else if (command === 'land') {
-            this.animateLanding(drone);
+            // Just visual effect, no position changes  
+            this.showLandingEffect(drone);
         } else if (command.includes('flip')) {
             this.animateFlip(drone);
         }
     }
 
-    animateTakeoff(drone) {
-        // Quick upward animation
-        const startY = drone.position.y;
-        const targetY = startY + 5;
-
-        const animate = () => {
-            drone.position.y = THREE.MathUtils.lerp(drone.position.y, targetY, 0.1);
-            if (Math.abs(drone.position.y - targetY) > 0.1) {
-                requestAnimationFrame(animate);
-            }
-        };
-        animate();
+    showTakeoffEffect(drone) {
+        // Brief visual effect without changing position
+        const originalScale = drone.scale.clone();
+        drone.scale.multiplyScalar(1.1);
+        
+        setTimeout(() => {
+            drone.scale.copy(originalScale);
+        }, 200);
     }
 
-    animateLanding(drone) {
-        // Smooth downward animation
-        const animate = () => {
-            drone.position.y = THREE.MathUtils.lerp(drone.position.y, 0, 0.05);
-            if (drone.position.y > 0.1) {
-                requestAnimationFrame(animate);
-            } else {
-                drone.position.y = 0;
-            }
-        };
-        animate();
+    showLandingEffect(drone) {
+        // Brief visual effect without changing position
+        const originalScale = drone.scale.clone();
+        drone.scale.multiplyScalar(0.9);
+        
+        setTimeout(() => {
+            drone.scale.copy(originalScale);
+        }, 200);
     }
 
     animateFlip(drone) {
@@ -392,6 +480,44 @@ class ThreeScene {
         this.camera.position.set(50, 50, 50);
         this.camera.lookAt(0, 0, 0);
         this.controls.reset();
+    }
+
+    resetDronePosition(droneId) {
+        const drone = this.drones.get(droneId);
+        if (!drone) {
+            console.warn(`Drone ${droneId} not found for reset`);
+            return;
+        }
+
+        // Cancel any ongoing animations
+        if (drone.userData && drone.userData.animationId) {
+            cancelAnimationFrame(drone.userData.animationId);
+            drone.userData.animationId = null;
+        }
+
+        // Animate drone back to origin position
+        this.animateToPosition(drone, { x: 0, y: 0, z: 0 });
+
+        // Reset rotation smoothly
+        this.animateToRotation(drone, 'x', 0);
+        this.animateToRotation(drone, 'y', 0);
+        this.animateToRotation(drone, 'z', 0);
+
+        // Clear trail
+        const trail = drone.children.find(child => child.name === 'trail');
+        if (trail) {
+            trail.userData.positions = [];
+            trail.visible = false;
+        }
+
+        // Reset LED to green
+        const statusLed = drone.children.find(child => child.name === 'status_led');
+        if (statusLed) {
+            statusLed.material.color.setHex(0x00ff00);
+            statusLed.material.emissive.setHex(0x004400);
+        }
+
+        console.log(`Reset drone ${droneId} to origin position with smooth animation`);
     }
 
     startRenderLoop() {

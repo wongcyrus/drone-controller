@@ -94,18 +94,20 @@ def main():
 
         print("Taking off...")
         swarm.takeoff()
+        time.sleep(5)
 
         print("Moving up...")
         # run in parallel on all tellos
         swarm.move_up(100)
-
-        print("Moving forward sequentially...")
-        # run by one tello after the other
-        swarm.sequential(lambda i, tello: tello.move_forward(i * 20 + 20))
-
-        print("Moving left in parallel...")
-        # making each tello do something unique in parallel
-        swarm.parallel(lambda i, tello: tello.move_left(i * 100 + 20))
+        time.sleep(5)
+        swarm.move_forward(100)
+        time.sleep(5)
+        print("Moving down...")
+        swarm.move_down(100)
+        time.sleep(5)
+        print("Moving right...")
+        swarm.move_right(100)
+        time.sleep(5)
 
         print("Landing...")
         swarm.land()

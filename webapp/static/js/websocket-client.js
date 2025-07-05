@@ -4,7 +4,7 @@
  */
 
 class WebSocketClient {
-    constructor(url = 'ws://localhost:8765') {
+    constructor(url = 'ws://localhost:8766') {
         this.url = url;
         this.ws = null;
         this.connected = false;
@@ -107,6 +107,12 @@ class WebSocketClient {
     }
 
     handleMessage(message) {
+        // Debug logging for all messages
+        console.log("🔄 WebSocket Message Received:", {
+            type: message.type,
+            timestamp: new Date().toISOString(),
+            data: message
+        });
         const { type } = message;
 
         switch (type) {
@@ -123,6 +129,12 @@ class WebSocketClient {
                 break;
 
             case 'drone_state':
+                console.log("📡 Drone State Update:", message.drone_id, "Position:", {
+                    x: message.data.x || 0, 
+                    y: message.data.y || 0, 
+                    z: message.data.z || 0, 
+                    h: message.data.h || 0
+                }, "Battery:", message.data.bat, "Full State:", message.data);
                 this.handleDroneState(message.drone_id, message.data);
                 break;
 
@@ -131,6 +143,7 @@ class WebSocketClient {
                 break;
 
             case 'command_executed':
+                console.log("✅ UDP Command Executed:", message.drone_id, "Command:", message.command, "Response:", message.response);
                 this.handleCommandExecuted(message);
                 break;
 

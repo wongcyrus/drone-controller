@@ -28,6 +28,12 @@ class DroneSimulatorApp {
         // Start periodic updates
         this.droneSimulator.startStateSimulation();
 
+        // Auto-connect to WebSocket
+        setTimeout(() => {
+            console.log("🔗 Auto-connecting to WebSocket...");
+            this.wsClient.connect();
+        }, 1000);
+
         console.log('Drone Simulator App initialized');
     }
 
@@ -112,11 +118,18 @@ class DroneSimulatorApp {
             this.addVirtualDrone();
         });
 
+        // Reset button (special handling)
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            this.resetDrone();
+        });
+
         // Manual control buttons
         document.querySelectorAll('.cmd-btn').forEach(button => {
             button.addEventListener('click', () => {
                 const command = button.getAttribute('data-command');
-                this.sendCommand(command);
+                if (command) { // Only send if it has a data-command attribute
+                    this.sendCommand(command);
+                }
             });
         });
 
@@ -174,10 +187,18 @@ class DroneSimulatorApp {
     handleDroneUpdate(type, data) {
         switch (type) {
             case 'list':
-                // Handle initial drone list
-                data.forEach(droneId => {
+                // Handle initial drone list - data is now array of drone objects
+                console.log("📋 Processing drone list:", data);
+                data.forEach(drone => {
+                    const droneId = drone.id || drone.name;
                     if (!this.droneSimulator.getDrone(droneId)) {
-                        this.droneSimulator.addDrone(droneId, { connected: true });
+                        this.droneSimulator.addDrone(droneId, {
+                            connected: drone.connected,
+                            ip: drone.ip,
+                            port: drone.port,
+                            state: drone.state || {}
+                        });
+                        console.log(`🚁 Added drone: ${droneId} (${drone.ip}:${drone.port})`);
                         this.threeScene.addDrone(droneId);
                     }
                 });
@@ -366,6 +387,24 @@ class DroneSimulatorApp {
 
         // Auto-select the new drone
         this.selectDrone(drone.id);
+    }
+
+    resetDrone() {
+        if (!this.selectedDroneId) {
+            this.logToConsole('No drone selected for reset', 'error');
+            return;
+        }
+
+        this.logToConsole(`Resetting drone: ${this.selectedDroneId}`, 'info');
+
+        // Send reset command to backend
+        this.sendCommand('reset');
+
+        // Reset 3D position
+        setTimeout(() => {
+            this.threeScene.resetDronePosition(this.selectedDroneId);
+            this.logToConsole(`Drone ${this.selectedDroneId} reset complete`, 'success');
+        }, 1000);
     }
 
     logToConsole(message, type = 'info') {

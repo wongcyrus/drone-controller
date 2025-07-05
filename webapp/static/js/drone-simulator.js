@@ -358,7 +358,7 @@ class DroneSimulator {
         setInterval(() => {
             this.drones.forEach((drone, droneId) => {
                 if (drone.connected) {
-                    // Simulate small state changes
+                    // Only update flight time - no random variations
                     const state = { ...drone.state };
 
                     // Increment flight time if flying
@@ -366,21 +366,14 @@ class DroneSimulator {
                         state.time += 1;
                     }
 
-                    // Slowly drain battery
-                    if (Math.random() < 0.01) { // 1% chance every update
-                        state.bat = Math.max(0, state.bat - 1);
+                    // No random battery drain - only command-based
+                    // No sensor noise - keep values stable
+                    // State updates come from the backend via WebSocket
+
+                    // Only update if there are actual changes
+                    if (state.time !== drone.state.time) {
+                        this.updateDroneState(droneId, state);
                     }
-
-                    // Add sensor noise
-                    state.baro += (Math.random() - 0.5) * 0.2;
-                    state.templ += (Math.random() - 0.5) * 1.0;
-                    state.temph += (Math.random() - 0.5) * 1.0;
-
-                    // Keep temperature range realistic
-                    state.templ = Math.max(10, Math.min(40, state.templ));
-                    state.temph = Math.max(state.templ, Math.min(45, state.temph));
-
-                    this.updateDroneState(droneId, state);
                 }
             });
         }, 1000); // Update every second

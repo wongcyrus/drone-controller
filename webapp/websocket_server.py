@@ -15,6 +15,10 @@ import threading
 import time
 from typing import Dict, Set, Any
 
+# Configure logging to reduce websockets debug noise
+logging.getLogger('websockets.server').setLevel(logging.INFO)
+logging.getLogger('websockets.protocol').setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,13 +113,26 @@ class DroneWebSocketServer:
 
     async def send_drone_list(self, websocket):
         """Send list of available drones to client"""
+        # Convert drone dictionary to array format expected by frontend
+        drone_array = []
+        for drone_id, drone_info in self.drones.items():
+            drone_array.append({
+                'id': drone_id,
+                'name': drone_info.get('name', drone_id),
+                'ip': drone_info.get('ip', ''),
+                'port': drone_info.get('port', 0),
+                'connected': drone_info.get('connected', False),
+                'state': drone_info.get('state', {})
+            })
+        
         drone_list = {
             'type': 'drone_list',
-            'drones': list(self.drones.keys())
+            'drones': drone_array
         }
+        logger.info(f"Sending drone list to client: {[d['id'] for d in drone_array]}")
         await websocket.send(json.dumps(drone_list))
 
-    async def handle_client(self, websocket, path):
+    async def handle_client(self, websocket):
         """Handle a WebSocket client connection"""
         await self.register_client(websocket)
         try:
@@ -141,6 +158,8 @@ class DroneWebSocketServer:
         """Register a drone with the WebSocket server"""
         self.drones[drone_id] = drone_info
         logger.info("Drone registered: %s", drone_id)
+        logger.debug("Drone info: %s", drone_info)
+        logger.info("Total drones registered: %d", len(self.drones))
 
         # Schedule broadcast message
         self._schedule_message({
@@ -176,6 +195,8 @@ class DroneWebSocketServer:
     def notify_command_executed(self, drone_id: str, command: str,
                                 response: str):
         """Notify clients that a command was executed"""
+        logger.info("UDP Command executed - Drone: %s, Command: %s, Response: %s", 
+                   drone_id, command, response)
         self._schedule_message({
             'type': 'command_result',
             'drone_id': drone_id,
@@ -191,17 +212,17 @@ class DroneWebSocketServer:
         logger.info("Starting WebSocket server on %s:%d",
                     self.host, self.port)
 
-        # Start the server
-        server = await websockets.serve(self.handle_client, self.host, self.port)
-        logger.info("WebSocket server listening on ws://%s:%d",
-                    self.host, self.port)
-        
-        # Signal that server is ready (if we have a ready event)
-        if hasattr(self, '_server_ready_event'):
-            self._server_ready_event.set()
-        
-        # Keep server running
-        await server.wait_closed()
+        # Start the server with newer websockets API
+        async with websockets.serve(self.handle_client, self.host, self.port) as server:
+            logger.info("WebSocket server listening on ws://%s:%d",
+                        self.host, self.port)
+            
+            # Signal that server is ready (if we have a ready event)
+            if hasattr(self, '_server_ready_event'):
+                self._server_ready_event.set()
+            
+            # Keep server running indefinitely
+            await asyncio.Future()  # Run forever
 
     def stop_server(self):
         """Stop the WebSocket server"""
