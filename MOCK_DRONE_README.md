@@ -17,7 +17,7 @@ A UDP-based mock implementation of the DJI Tello drone that simulates real drone
 ### 1. Start a Single Mock Drone
 
 ```bash
-python mock_tello_drone.py
+python webapp/mock_tello_drone.py
 ```
 
 This starts a mock drone listening on `127.0.0.1:8889` for commands.
@@ -43,10 +43,10 @@ tello.land()
 
 ```bash
 # Terminal 1: Start first drone
-python mock_tello_drone.py --ip 192.168.1.10 --name Drone1
+python webapp/mock_tello_drone.py --ip 192.168.1.10 --name Drone1
 
 # Terminal 2: Start second drone
-python mock_tello_drone.py --ip 192.168.1.11 --name Drone2
+python webapp/mock_tello_drone.py --ip 192.168.1.11 --name Drone2
 ```
 
 Then test with TelloSwarm:
@@ -76,13 +76,13 @@ swarm.end()
 
 ```bash
 # Single drone on localhost
-python mock_tello_drone.py
+python webapp/mock_tello_drone.py
 
 # Drone on specific IP
-python mock_tello_drone.py --ip 192.168.1.100 --name MyDrone
+python webapp/mock_tello_drone.py --ip 192.168.1.100 --name MyDrone
 
 # Multiple drones on sequential IPs
-python mock_tello_drone.py --ip 192.168.1.10 --multiple 3
+python webapp/mock_tello_drone.py --ip 192.168.1.10 --multiple 3
 # Creates drones on 192.168.1.10, 192.168.1.11, 192.168.1.12
 ```
 

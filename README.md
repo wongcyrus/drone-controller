@@ -44,7 +44,7 @@ uv sync
 Change the code in main.py with WSL IP.
 ```bash
 # Terminal 1 in WSL: Start mock drone
-python mock_tello_drone.py --ip <WSL IP>
+python webapp/mock_drone.py --ip <WSL IP> --host 0.0.0.0
 
 # Terminal 2: Run swarm controller
 python main.py
@@ -128,16 +128,16 @@ The project includes a sophisticated mock drone simulator for testing without re
 
 ```bash
 # Single mock drone (default: 127.0.0.1:8889)
-python mock_tello_drone.py
+python webapp/mock_drone.py
 
 # Custom IP
-python mock_tello_drone.py --ip 172.28.3.205
+python webapp/mock_drone.py --ip 172.28.3.205 --host 0.0.0.0
 
-# Multiple drones on sequential IPs
-python mock_tello_drone.py --multiple 3 --ip 127.0.0.1
+# Multiple drones on sequential IPs (Linux only)
+python webapp/mock_drone.py --multiple 3 --ip 127.0.0.1
 
 # Custom port
-python mock_tello_drone.py --port 8890
+python webapp/mock_drone.py --port 8890
 ```
 
 ### Mock Drone Features
@@ -154,19 +154,13 @@ python mock_tello_drone.py --port 8890
 
 ### Testing Communication
 
-```bash
-# Test basic UDP communication
-python test_udp_communication.py
-
-# Test full Tello API
-python test_mock_different_port.py
-```
+The mock drone can be tested directly by running commands against it using the main controller or djitellopy client.
 
 ### WSL/Windows Testing
 
 **WSL Terminal:**
 ```bash
-python mock_tello_drone.py --ip 172.28.3.205
+python webapp/mock_drone.py --ip 172.28.3.205 --host 0.0.0.0
 ```
 
 **Windows Terminal:**
@@ -180,11 +174,13 @@ python main.py
 ```
 drone-controller/
 ├── main.py                    # Main swarm controller script
-├── mock_tello_drone.py        # Mock drone simulator
-├── test_udp_communication.py  # Basic UDP test script
-├── test_mock_different_port.py # Full API test script
-├── config/
-│   └── drone_config.yaml      # Drone configuration (future use)
+├── webapp/                    # Web-based drone simulator
+│   ├── mock_drone.py         # Enhanced mock drone with webapp
+│   ├── mock_tello_drone.py   # Core mock drone implementation
+│   ├── websocket_server.py   # WebSocket server for webapp
+│   ├── web_server.py         # Flask web server
+│   ├── static/               # CSS, JS, and web assets
+│   └── templates/            # HTML templates
 ├── pyproject.toml             # Project dependencies and metadata
 ├── setup.bat                  # Windows setup script
 ├── SETUP.md                   # Detailed setup instructions
@@ -195,9 +191,9 @@ drone-controller/
 ### Key Files
 
 - **`main.py`**: Main entry point - simple swarm demo
-- **`mock_tello_drone.py`**: Full mock drone implementation
+- **`webapp/mock_drone.py`**: Enhanced mock drone with web interface
+- **`webapp/mock_tello_drone.py`**: Core mock drone implementation
 - **`pyproject.toml`**: Dependencies (djitellopy, numpy, opencv-python, pyyaml)
-- **`config/drone_config.yaml`**: Configuration file (for future features)
 
 ## ⚙️ Configuration
 
@@ -217,13 +213,13 @@ swarm = TelloSwarm.fromIps([
 
 ```bash
 # Different IP
-python mock_tello_drone.py --ip 192.168.1.100
+python webapp/mock_drone.py --ip 192.168.1.100 --host 0.0.0.0
 
 # Different port (if 8889 is busy)
-python mock_tello_drone.py --port 8890
+python webapp/mock_drone.py --port 8890
 
-# Multiple mock drones
-python mock_tello_drone.py --multiple 3
+# Multiple mock drones (Linux only)
+python webapp/mock_drone.py --multiple 3
 ```
 
 ## 🐛 Troubleshooting
@@ -234,10 +230,7 @@ python mock_tello_drone.py --multiple 3
 
 ```bash
 # Check if mock drone is running
-python mock_tello_drone.py --ip 127.0.0.1
-
-# Test communication
-python test_udp_communication.py
+python webapp/mock_drone.py --ip 127.0.0.1 --host 0.0.0.0
 
 # Check Windows Firewall
 # Allow Python through Windows Defender Firewall
@@ -283,7 +276,7 @@ The mock drone provides detailed logging:
 
 ```bash
 # Run with debug output
-python mock_tello_drone.py --ip 127.0.0.1
+python webapp/mock_drone.py --ip 127.0.0.1
 
 # Look for these log patterns:
 # 📥 RAW UDP: Shows all incoming packets
@@ -384,10 +377,7 @@ MIT License - see pyproject.toml for details.
 
 ```bash
 # Check mock drone is running
-python mock_tello_drone.py --ip 127.0.0.1
-
-# Test basic communication
-python test_udp_communication.py
+python webapp/mock_drone.py --ip 127.0.0.1 --host 0.0.0.0
 
 # Check firewall settings (Windows)
 # Allow Python through Windows Firewall

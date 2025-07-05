@@ -102,7 +102,7 @@ uv run python -c "import src.drone_controller; print('✓ Import successful')"
 
 ## ⚙️ Configuration
 
-- **Drone settings**: Edit `config/drone_config.yaml`
+- **Drone settings**: Configure directly in `main.py` or use webapp interface
 - **Logging**: Check `logs/` directory for runtime logs
 - **Examples**: See `examples/` directory for usage examples
 
@@ -160,7 +160,7 @@ uv add --dev package-name  # for development dependencies
 
 1. **Read the documentation**: `README.md`
 2. **Try examples**: Run scripts in `examples/`
-3. **Configure drones**: Edit `config/drone_config.yaml`
+3. **Configure drones**: Update IP addresses in `main.py` or use the webapp interface
 4. **Start coding**: Begin with `examples/basic_flight.py`
 
 Happy flying! 🚁✨
