@@ -118,12 +118,12 @@ class DroneSimulatorApp {
             this.addVirtualDrone();
         });
 
-        // Reset button (special handling)
+        // Reset button
         document.getElementById('reset-btn').addEventListener('click', () => {
             this.resetDrone();
         });
 
-        // Manual control buttons
+        // Manual control buttons (no longer includes reset)
         document.querySelectorAll('.cmd-btn').forEach(button => {
             button.addEventListener('click', () => {
                 const command = button.getAttribute('data-command');
@@ -228,8 +228,12 @@ class DroneSimulatorApp {
         const { drone_id, command, response, timestamp } = result;
 
         this.logToConsole(`[${drone_id}] ${command}`, 'command');
-        this.logToConsole(`[${drone_id}] ${response}`,
-            response.startsWith('error') ? 'error' : 'response');
+        
+        // Handle undefined/null response
+        const responseText = response || 'no response';
+        const responseType = (response && response.startsWith && response.startsWith('error')) ? 'error' : 'response';
+        
+        this.logToConsole(`[${drone_id}] ${responseText}`, responseType);
 
         // Animate command in 3D scene if it's a movement command
         if (['takeoff', 'land', 'flip'].some(cmd => command.includes(cmd))) {
@@ -330,7 +334,10 @@ class DroneSimulatorApp {
         const sendCommandBtn = document.getElementById('send-command-btn');
 
         controlButtons.forEach(button => {
-            button.disabled = !enabled;
+            // Don't disable the reset button - it should always be available
+            if (button.id !== 'reset-btn') {
+                button.disabled = !enabled;
+            }
         });
 
         customCommandInput.disabled = !enabled;
@@ -397,14 +404,13 @@ class DroneSimulatorApp {
 
         this.logToConsole(`Resetting drone: ${this.selectedDroneId}`, 'info');
 
-        // Send reset command to backend
+        // SIMPLE: Reset 3D position immediately
+        this.threeScene.resetDroneToOrigin(this.selectedDroneId);
+
+        // SIMPLE: Send reset command to backend
         this.sendCommand('reset');
 
-        // Reset 3D position
-        setTimeout(() => {
-            this.threeScene.resetDronePosition(this.selectedDroneId);
-            this.logToConsole(`Drone ${this.selectedDroneId} reset complete`, 'success');
-        }, 1000);
+        this.logToConsole(`Drone ${this.selectedDroneId} reset complete`, 'success');
     }
 
     logToConsole(message, type = 'info') {

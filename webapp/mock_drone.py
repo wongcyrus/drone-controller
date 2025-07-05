@@ -86,6 +86,11 @@ class EnhancedMockTelloDrone(MockTelloDrone):
         # Process command with base implementation
         response = super()._process_command(command)
 
+        # Force webapp state update for reset command
+        if command.strip().lower() == 'reset' and self.webapp_enabled:
+            self.logger.info("🔄 Forcing webapp state update after reset")
+            self.update_webapp_state(force=True)
+
         # Notify webapp of command execution
         if self.webapp_enabled:
             try:

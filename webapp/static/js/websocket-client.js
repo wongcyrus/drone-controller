@@ -138,13 +138,24 @@ class WebSocketClient {
                 this.handleDroneState(message.drone_id, message.data);
                 break;
 
+            case 'drone_reset':
+                console.log("🔄 DRONE RESET:", message.drone_id, "- forcing immediate reset to origin");
+                if (this.app && this.app.threeScene) {
+                    // Force immediate reset regardless of current state
+                    this.app.threeScene.resetDroneToOrigin(message.drone_id);
+                    // Also update with reset state
+                    this.app.threeScene.updateDroneState(message.drone_id, message.data);
+                }
+                break;
+
             case 'command_result':
                 this.handleCommandResult(message);
                 break;
 
             case 'command_executed':
-                console.log("✅ UDP Command Executed:", message.drone_id, "Command:", message.command, "Response:", message.response);
-                this.handleCommandExecuted(message);
+                console.log("✅ Command Executed:", message.drone_id, "Command:", message.command);
+                // Note: command_executed messages don't have response field
+                // The response comes later in command_result messages
                 break;
 
             case 'pong':

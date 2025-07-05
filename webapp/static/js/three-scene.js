@@ -231,13 +231,55 @@ class ThreeScene {
         const drone = this.drones.get(droneId);
         if (!drone) return;
 
-        // Cancel any ongoing animations to prevent conflicts
+        // Check if this is a reset state (like a new server)
+        const isResetState = (
+            state.x === 0 && state.y === 0 && state.z === 0 && state.h === 0 &&
+            state.pitch === 0 && state.roll === 0 && state.yaw === 0 &&
+            state.bat === 100 && state.time === 0
+        );
+
+        if (isResetState) {
+            console.log(`🔄 RESET STATE: ${droneId} - server reset detected, moving to origin`);
+            // Cancel any ongoing animations
+            if (drone.userData && drone.userData.animationId) {
+                cancelAnimationFrame(drone.userData.animationId);
+                drone.userData.animationId = null;
+            }
+            // IMMEDIATELY set to origin (no animation)
+            drone.position.set(0, 0, 0);
+            drone.rotation.set(0, 0, 0);
+            
+            // Clear trail
+            const trail = drone.children.find(child => child.name === 'trail');
+            if (trail) {
+                trail.userData.positions = [];
+                trail.visible = false;
+            }
+            
+            // Reset LED to green
+            const statusLed = drone.children.find(child => child.name === 'status_led');
+            if (statusLed) {
+                statusLed.material.color.setHex(0x00ff00);
+                statusLed.material.emissive.setHex(0x004400);
+            }
+            
+            // Stop propellers
+            this.animatePropellers(drone, false);
+            
+            // Clear user data
+            drone.userData = {};
+            
+            console.log(`✅ RESET COMPLETE: ${droneId} at origin via server state`);
+            return;
+        }
+
+        // SIMPLE: Cancel any ongoing animations
         if (drone.userData && drone.userData.animationId) {
             cancelAnimationFrame(drone.userData.animationId);
             drone.userData.animationId = null;
         }
 
-        // Update position with smooth animation (convert from cm to meters for better scale)
+        // SIMPLE: Update position with smooth animation (convert from cm to meters for better scale)
         const scale = 0.1; // 1cm = 0.1 units in 3D space
         
         // Calculate target positions
@@ -384,6 +426,72 @@ class ThreeScene {
         return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
+    animateToPositionFast(drone, targetPosition, duration = 0.3) {
+        const startPosition = {
+            x: drone.position.x,
+            y: drone.position.y,
+            z: drone.position.z
+        };
+
+        // Fast animation for emergency reset
+        let progress = 0;
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = (currentTime - startTime) / 1000;
+            progress = Math.min(elapsed / duration, 1);
+
+            // Use faster easing for emergency
+            const easeProgress = this.easeInOutQuad(progress);
+
+            drone.position.x = THREE.MathUtils.lerp(startPosition.x, targetPosition.x, easeProgress);
+            drone.position.y = THREE.MathUtils.lerp(startPosition.y, targetPosition.y, easeProgress);
+            drone.position.z = THREE.MathUtils.lerp(startPosition.z, targetPosition.z, easeProgress);
+
+            if (progress < 1) {
+                drone.userData.animationId = requestAnimationFrame(animate);
+            } else {
+                drone.position.set(targetPosition.x, targetPosition.y, targetPosition.z);
+                drone.userData.animationId = null;
+                console.log(`🎯 Drone reached origin (0,0,0)`);
+            }
+        };
+
+        drone.userData.animationId = requestAnimationFrame(animate);
+    }
+
+    animateToRotationFast(drone, axis, targetRotation, duration = 0.3) {
+        const currentRotation = drone.rotation[axis];
+        
+        if (Math.abs(targetRotation - currentRotation) < 0.01) {
+            drone.rotation[axis] = targetRotation;
+            return;
+        }
+
+        let progress = 0;
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = (currentTime - startTime) / 1000;
+            progress = Math.min(elapsed / duration, 1);
+
+            const easeProgress = this.easeInOutQuad(progress);
+            drone.rotation[axis] = THREE.MathUtils.lerp(currentRotation, targetRotation, easeProgress);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                drone.rotation[axis] = targetRotation;
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }
+
+    easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
     updateTrail(drone) {
         const trail = drone.children.find(child => child.name === 'trail');
         if (!trail) return;
@@ -518,6 +626,48 @@ class ThreeScene {
         }
 
         console.log(`Reset drone ${droneId} to origin position with smooth animation`);
+    }
+
+    resetDroneToOrigin(droneId) {
+        const drone = this.drones.get(droneId);
+        if (!drone) {
+            console.warn(`Drone ${droneId} not found for reset`);
+            return;
+        }
+
+        console.log(`🔄 RESET: ${droneId} - resetting everything`);
+
+        // SIMPLE: Cancel any animations
+        if (drone.userData && drone.userData.animationId) {
+            cancelAnimationFrame(drone.userData.animationId);
+            drone.userData.animationId = null;
+        }
+
+        // SIMPLE: Reset position and rotation to zero
+        drone.position.set(0, 0, 0);
+        drone.rotation.set(0, 0, 0);
+
+        // SIMPLE: Clear trail
+        const trail = drone.children.find(child => child.name === 'trail');
+        if (trail) {
+            trail.userData.positions = [];
+            trail.visible = false;
+        }
+
+        // SIMPLE: Reset LED to green
+        const statusLed = drone.children.find(child => child.name === 'status_led');
+        if (statusLed) {
+            statusLed.material.color.setHex(0x00ff00);
+            statusLed.material.emissive.setHex(0x004400);
+        }
+
+        // SIMPLE: Stop propellers
+        this.animatePropellers(drone, false);
+
+        // SIMPLE: Reset all user data
+        drone.userData = {};
+
+        console.log(`✅ RESET COMPLETE: ${droneId} at origin (0,0,0)`);
     }
 
     startRenderLoop() {

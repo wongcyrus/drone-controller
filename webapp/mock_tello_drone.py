@@ -323,15 +323,40 @@ class MockTelloDrone:
 
         # Handle reset command
         elif cmd == 'reset':
-            # Reset drone to initial state
+            # SIMPLE: Reset everything to initial state
             self.is_flying = False
-            self.state.update({
-                'x': 0, 'y': 0, 'z': 0, 'h': 0,
-                'pitch': 0, 'roll': 0, 'yaw': 0,
-                'vgx': 0, 'vgy': 0, 'vgz': 0,
-                'bat': 100,
-                'time': 0
-            })
+            self.sdk_mode = False
+            self.stream_on = False
+            
+            # Reset ALL state to initial values
+            self.state = {
+                'mid': -1,     # Mission pad ID
+                'x': 0,        # Mission pad X
+                'y': 0,        # Mission pad Y
+                'z': 0,        # Mission pad Z
+                'pitch': 0,    # Pitch angle
+                'roll': 0,     # Roll angle
+                'yaw': 0,      # Yaw angle
+                'vgx': 0,      # Velocity X
+                'vgy': 0,      # Velocity Y
+                'vgz': 0,      # Velocity Z
+                'templ': 20,   # Temperature low
+                'temph': 25,   # Temperature high
+                'tof': 10,     # Time of flight distance
+                'h': 0,        # Height
+                'bat': 100,    # Battery percentage
+                'baro': 1013.25,  # Barometer
+                'time': 0,     # Flight time
+                'agx': 0.0,    # Acceleration X
+                'agy': 0.0,    # Acceleration Y
+                'agz': -1000.0  # Acceleration Z (gravity)
+            }
+            
+            self.logger.info(f"🔄 RESET: {self.name} - everything reset to initial state")
+            
+            # Force state broadcast
+            self._force_state_broadcast()
+            
             return 'ok'
 
         # Handle speed setting
@@ -569,6 +594,18 @@ class MockTelloDrone:
         # Keep temperature and barometer values stable
         # No random variations - maintain consistent sensor readings
         # Battery only drains on commands, not over time
+
+    def _force_state_broadcast(self):
+        """Force immediate state broadcast after reset"""
+        if self.sdk_mode and self.client_addresses:
+            state_str = self._build_state_string()
+            for client_addr in list(self.client_addresses):
+                try:
+                    state_addr = (client_addr[0], self.STATE_PORT)
+                    self.state_socket.sendto(state_str.encode('ascii'), state_addr)
+                except Exception:
+                    self.client_addresses.discard(client_addr)
+            self.logger.info("🔄 Forced state broadcast after reset")
 
 
 def main():

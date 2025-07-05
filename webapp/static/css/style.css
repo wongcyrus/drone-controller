@@ -410,10 +410,10 @@ main {
 }
 /* Reset Button */
 .reset-btn {
-    background: #e53e3e !important;
+    background: #e53e3e;
     color: white;
 }
 
 .reset-btn:hover {
-    background: #c53030 !important;
+    background: #c53030;
 }

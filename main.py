@@ -94,20 +94,19 @@ def main():
 
         print("Taking off...")
         swarm.takeoff()
-        time.sleep(5)
+        time.sleep(2)
 
         print("Moving up...")
         # run in parallel on all tellos
         swarm.move_up(100)
-        time.sleep(5)
         swarm.move_forward(100)
-        time.sleep(5)
+        time.sleep(2)
         print("Moving down...")
         swarm.move_down(100)
-        time.sleep(5)
+        time.sleep(2)
         print("Moving right...")
         swarm.move_right(100)
-        time.sleep(5)
+        time.sleep(2)
 
         print("Landing...")
         swarm.land()

@@ -185,18 +185,54 @@ class DroneWebSocketServer:
         if drone_id in self.drones:
             self.drones[drone_id]['state'] = state
 
-            # Schedule broadcast message
-            self._schedule_message({
-                'type': 'drone_state',
-                'drone_id': drone_id,
-                'data': state
-            })
+            # Check if this is a reset state (like new server)
+            is_reset_state = (
+                state.get('x') == 0 and state.get('y') == 0 and 
+                state.get('z') == 0 and state.get('h') == 0 and
+                state.get('pitch') == 0 and state.get('roll') == 0 and 
+                state.get('yaw') == 0 and state.get('bat') == 100 and 
+                state.get('time') == 0
+            )
+
+            if is_reset_state:
+                logger.info("🔄 RESET STATE: Broadcasting immediate reset for %s", drone_id)
+                # Force immediate broadcast for reset state
+                self._schedule_message({
+                    'type': 'drone_reset',
+                    'drone_id': drone_id,
+                    'data': state
+                })
+                # Also send regular state update
+                self._schedule_message({
+                    'type': 'drone_state',
+                    'drone_id': drone_id,
+                    'data': state
+                })
+            else:
+                # Regular state update
+                self._schedule_message({
+                    'type': 'drone_state',
+                    'drone_id': drone_id,
+                    'data': state
+                })
 
     def notify_command_executed(self, drone_id: str, command: str,
                                 response: str):
         """Notify clients that a command was executed"""
         logger.info("UDP Command executed - Drone: %s, Command: %s, Response: %s", 
                    drone_id, command, response)
+        
+        # Special handling for reset command
+        if command.strip().lower() == 'reset':
+            logger.info("🔄 RESET COMMAND: Forcing immediate state update for %s", drone_id)
+            # Force immediate state update after reset command
+            if drone_id in self.drones:
+                self._schedule_message({
+                    'type': 'drone_state',
+                    'drone_id': drone_id,
+                    'data': self.drones[drone_id]['state']
+                })
+        
         self._schedule_message({
             'type': 'command_result',
             'drone_id': drone_id,
