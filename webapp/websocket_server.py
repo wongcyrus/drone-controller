@@ -16,8 +16,8 @@ import time
 from typing import Dict, Set, Any
 
 # Configure logging to reduce websockets debug noise
-logging.getLogger('websockets.server').setLevel(logging.INFO)
-logging.getLogger('websockets.protocol').setLevel(logging.WARNING)
+logging.getLogger("websockets.server").setLevel(logging.INFO)
+logging.getLogger("websockets.protocol").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class DroneWebSocketServer:
     """WebSocket server for drone simulator webapp"""
 
-    def __init__(self, host='localhost', port=8765):
+    def __init__(self, host="localhost", port=8765):
         self.host = host
         self.port = port
         self.clients: Set[websockets.WebSocketServerProtocol] = set()
@@ -51,9 +51,9 @@ class DroneWebSocketServer:
         """Send initial state to a newly connected client"""
         for drone_id, drone_info in self.drones.items():
             message = {
-                'type': 'drone_state',
-                'drone_id': drone_id,
-                'data': drone_info['state']
+                "type": "drone_state",
+                "drone_id": drone_id,
+                "data": drone_info["state"],
             }
             await websocket.send(json.dumps(message))
 
@@ -80,14 +80,14 @@ class DroneWebSocketServer:
         """Handle incoming message from client"""
         try:
             message = json.loads(message_str)
-            message_type = message.get('type')
+            message_type = message.get("type")
 
-            if message_type == 'drone_command':
+            if message_type == "drone_command":
                 await self.handle_drone_command(message)
-            elif message_type == 'get_drones':
+            elif message_type == "get_drones":
                 await self.send_drone_list(websocket)
-            elif message_type == 'ping':
-                await websocket.send(json.dumps({'type': 'pong'}))
+            elif message_type == "ping":
+                await websocket.send(json.dumps({"type": "pong"}))
 
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON received: {message_str}")
@@ -96,39 +96,40 @@ class DroneWebSocketServer:
 
     async def handle_drone_command(self, message):
         """Handle drone command from webapp"""
-        drone_id = message.get('drone_id')
-        command = message.get('command')
+        drone_id = message.get("drone_id")
+        command = message.get("command")
 
         if drone_id in self.drones:
             # Forward command to actual drone (if needed)
             logger.info(f"Command for {drone_id}: {command}")
 
             # Broadcast command execution to all clients for visualization
-            await self.broadcast_message({
-                'type': 'command_executed',
-                'drone_id': drone_id,
-                'command': command,
-                'timestamp': time.time()
-            })
+            await self.broadcast_message(
+                {
+                    "type": "command_executed",
+                    "drone_id": drone_id,
+                    "command": command,
+                    "timestamp": time.time(),
+                }
+            )
 
     async def send_drone_list(self, websocket):
         """Send list of available drones to client"""
         # Convert drone dictionary to array format expected by frontend
         drone_array = []
         for drone_id, drone_info in self.drones.items():
-            drone_array.append({
-                'id': drone_id,
-                'name': drone_info.get('name', drone_id),
-                'ip': drone_info.get('ip', ''),
-                'port': drone_info.get('port', 0),
-                'connected': drone_info.get('connected', False),
-                'state': drone_info.get('state', {})
-            })
-        
-        drone_list = {
-            'type': 'drone_list',
-            'drones': drone_array
-        }
+            drone_array.append(
+                {
+                    "id": drone_id,
+                    "name": drone_info.get("name", drone_id),
+                    "ip": drone_info.get("ip", ""),
+                    "port": drone_info.get("port", 0),
+                    "connected": drone_info.get("connected", False),
+                    "state": drone_info.get("state", {}),
+                }
+            )
+
+        drone_list = {"type": "drone_list", "drones": drone_array}
         logger.info(f"Sending drone list to client: {[d['id'] for d in drone_array]}")
         await websocket.send(json.dumps(drone_list))
 
@@ -147,9 +148,7 @@ class DroneWebSocketServer:
         """Schedule a message to be broadcast from a non-async context"""
         if self.loop and self.loop.is_running():
             # We're in a different thread, schedule the coroutine safely
-            asyncio.run_coroutine_threadsafe(
-                self.broadcast_message(message), self.loop
-            )
+            asyncio.run_coroutine_threadsafe(self.broadcast_message(message), self.loop)
         else:
             # No event loop running, queue the message
             logger.warning("No event loop running, message queued")
@@ -162,11 +161,9 @@ class DroneWebSocketServer:
         logger.info("Total drones registered: %d", len(self.drones))
 
         # Schedule broadcast message
-        self._schedule_message({
-            'type': 'drone_added',
-            'drone_id': drone_id,
-            'data': drone_info
-        })
+        self._schedule_message(
+            {"type": "drone_added", "drone_id": drone_id, "data": drone_info}
+        )
 
     def unregister_drone(self, drone_id: str):
         """Unregister a drone from the WebSocket server"""
@@ -175,88 +172,71 @@ class DroneWebSocketServer:
             logger.info("Drone unregistered: %s", drone_id)
 
             # Schedule broadcast message
-            self._schedule_message({
-                'type': 'drone_removed',
-                'drone_id': drone_id
-            })
+            self._schedule_message({"type": "drone_removed", "drone_id": drone_id})
 
     def update_drone_state(self, drone_id: str, state: dict):
         """Update drone state and broadcast to clients"""
         if drone_id in self.drones:
-            self.drones[drone_id]['state'] = state
+            self.drones[drone_id]["state"] = state
 
-            # Check if this is a reset state (like new server)
-            is_reset_state = (
-                state.get('x') == 0 and state.get('y') == 0 and 
-                state.get('z') == 0 and state.get('h') == 0 and
-                state.get('pitch') == 0 and state.get('roll') == 0 and 
-                state.get('yaw') == 0 and state.get('bat') == 100 and 
-                state.get('time') == 0
+            # Simple state update - no reset detection here
+            self._schedule_message(
+                {"type": "drone_state", "drone_id": drone_id, "data": state}
             )
 
-            if is_reset_state:
-                logger.info("🔄 RESET STATE: Broadcasting immediate reset for %s", drone_id)
-                # Force immediate broadcast for reset state
-                self._schedule_message({
-                    'type': 'drone_reset',
-                    'drone_id': drone_id,
-                    'data': state
-                })
-                # Also send regular state update
-                self._schedule_message({
-                    'type': 'drone_state',
-                    'drone_id': drone_id,
-                    'data': state
-                })
-            else:
-                # Regular state update
-                self._schedule_message({
-                    'type': 'drone_state',
-                    'drone_id': drone_id,
-                    'data': state
-                })
-
-    def notify_command_executed(self, drone_id: str, command: str,
-                                response: str):
+    def notify_command_executed(self, drone_id: str, command: str, response: str):
         """Notify clients that a command was executed"""
-        logger.info("UDP Command executed - Drone: %s, Command: %s, Response: %s", 
-                   drone_id, command, response)
-        
-        # Special handling for reset command
-        if command.strip().lower() == 'reset':
-            logger.info("🔄 RESET COMMAND: Forcing immediate state update for %s", drone_id)
-            # Force immediate state update after reset command
-            if drone_id in self.drones:
-                self._schedule_message({
-                    'type': 'drone_state',
-                    'drone_id': drone_id,
-                    'data': self.drones[drone_id]['state']
-                })
-        
-        self._schedule_message({
-            'type': 'command_result',
-            'drone_id': drone_id,
-            'command': command,
-            'response': response,
-            'timestamp': time.time()
-        })
+        logger.info(
+            "UDP Command executed - Drone: %s, Command: %s, Response: %s",
+            drone_id,
+            command,
+            response,
+        )
+
+        # Track reset command explicitly
+        if command.strip().lower() == "reset" and response == "ok":
+            logger.info(
+                "🔄 RESET COMMAND EXECUTED: Broadcasting reset for %s", drone_id
+            )
+            # Send explicit reset message
+            self._schedule_message(
+                {
+                    "type": "drone_reset",
+                    "drone_id": drone_id,
+                    "data": (
+                        self.drones[drone_id]["state"]
+                        if drone_id in self.drones
+                        else {}
+                    ),
+                }
+            )
+
+        self._schedule_message(
+            {
+                "type": "command_result",
+                "drone_id": drone_id,
+                "command": command,
+                "response": response,
+                "timestamp": time.time(),
+            }
+        )
 
     async def start_server(self):
         """Start the WebSocket server"""
         self.running = True
         self.loop = asyncio.get_event_loop()  # Store the event loop
-        logger.info("Starting WebSocket server on %s:%d",
-                    self.host, self.port)
+        logger.info("Starting WebSocket server on %s:%d", self.host, self.port)
 
         # Start the server with newer websockets API
         async with websockets.serve(self.handle_client, self.host, self.port) as server:
-            logger.info("WebSocket server listening on ws://%s:%d",
-                        self.host, self.port)
-            
+            logger.info(
+                "WebSocket server listening on ws://%s:%d", self.host, self.port
+            )
+
             # Signal that server is ready (if we have a ready event)
-            if hasattr(self, '_server_ready_event'):
+            if hasattr(self, "_server_ready_event"):
                 self._server_ready_event.set()
-            
+
             # Keep server running indefinitely
             await asyncio.Future()  # Run forever
 
@@ -270,16 +250,16 @@ class DroneWebSocketServer:
 ws_server = DroneWebSocketServer()
 
 
-def start_websocket_server(host='localhost', port=8765):
+def start_websocket_server(host="localhost", port=8765):
     """Start WebSocket server in a separate thread with better error handling"""
     # Update global server instance with provided host/port
     ws_server.host = host
     ws_server.port = port
-    
+
     # Event to signal when server is ready
     server_ready = threading.Event()
     server_error = [None]  # Use list to allow modification in nested function
-    
+
     # Add the ready event to the server instance
     ws_server._server_ready_event = server_ready
 
@@ -288,7 +268,7 @@ def start_websocket_server(host='localhost', port=8765):
             # Create new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             # Start the server
             loop.run_until_complete(ws_server.start_server())
         except OSError as e:
@@ -303,7 +283,7 @@ def start_websocket_server(host='localhost', port=8765):
     # Start server thread
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    
+
     # Wait for server to start (with timeout)
     if server_ready.wait(timeout=5):
         if server_error[0]:
@@ -317,12 +297,12 @@ def start_websocket_server(host='localhost', port=8765):
         return None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Drone WebSocket Server')
-    parser.add_argument('--host', default='localhost', help='Host to bind to')
-    parser.add_argument('--port', type=int, default=8765, help='Port to bind to')
+    parser = argparse.ArgumentParser(description="Drone WebSocket Server")
+    parser.add_argument("--host", default="localhost", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8765, help="Port to bind to")
 
     args = parser.parse_args()
 

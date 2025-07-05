@@ -231,55 +231,13 @@ class ThreeScene {
         const drone = this.drones.get(droneId);
         if (!drone) return;
 
-        // Check if this is a reset state (like a new server)
-        const isResetState = (
-            state.x === 0 && state.y === 0 && state.z === 0 && state.h === 0 &&
-            state.pitch === 0 && state.roll === 0 && state.yaw === 0 &&
-            state.bat === 100 && state.time === 0
-        );
-
-        if (isResetState) {
-            console.log(`🔄 RESET STATE: ${droneId} - server reset detected, moving to origin`);
-            // Cancel any ongoing animations
-            if (drone.userData && drone.userData.animationId) {
-                cancelAnimationFrame(drone.userData.animationId);
-                drone.userData.animationId = null;
-            }
-            // IMMEDIATELY set to origin (no animation)
-            drone.position.set(0, 0, 0);
-            drone.rotation.set(0, 0, 0);
-            
-            // Clear trail
-            const trail = drone.children.find(child => child.name === 'trail');
-            if (trail) {
-                trail.userData.positions = [];
-                trail.visible = false;
-            }
-            
-            // Reset LED to green
-            const statusLed = drone.children.find(child => child.name === 'status_led');
-            if (statusLed) {
-                statusLed.material.color.setHex(0x00ff00);
-                statusLed.material.emissive.setHex(0x004400);
-            }
-            
-            // Stop propellers
-            this.animatePropellers(drone, false);
-            
-            // Clear user data
-            drone.userData = {};
-            
-            console.log(`✅ RESET COMPLETE: ${droneId} at origin via server state`);
-            return;
-        }
-
-        // SIMPLE: Cancel any ongoing animations
+        // Cancel any ongoing animations
         if (drone.userData && drone.userData.animationId) {
             cancelAnimationFrame(drone.userData.animationId);
             drone.userData.animationId = null;
         }
 
-        // SIMPLE: Update position with smooth animation (convert from cm to meters for better scale)
+        // Update position with smooth animation (convert from cm to meters for better scale)
         const scale = 0.1; // 1cm = 0.1 units in 3D space
         
         // Calculate target positions
@@ -635,36 +593,37 @@ class ThreeScene {
             return;
         }
 
-        console.log(`🔄 RESET: ${droneId} - resetting everything`);
+        console.log(`🔄 RESET: ${droneId} - resetting to origin`);
 
-        // SIMPLE: Cancel any animations
+        // Cancel any animations
         if (drone.userData && drone.userData.animationId) {
             cancelAnimationFrame(drone.userData.animationId);
             drone.userData.animationId = null;
         }
 
-        // SIMPLE: Reset position and rotation to zero
+        // Reset position and rotation to zero
         drone.position.set(0, 0, 0);
         drone.rotation.set(0, 0, 0);
 
-        // SIMPLE: Clear trail
+        // Remove trail/tracking line completely
         const trail = drone.children.find(child => child.name === 'trail');
         if (trail) {
-            trail.userData.positions = [];
-            trail.visible = false;
+            drone.remove(trail);
+            trail.geometry.dispose();
+            trail.material.dispose();
         }
 
-        // SIMPLE: Reset LED to green
+        // Reset LED to green
         const statusLed = drone.children.find(child => child.name === 'status_led');
         if (statusLed) {
             statusLed.material.color.setHex(0x00ff00);
             statusLed.material.emissive.setHex(0x004400);
         }
 
-        // SIMPLE: Stop propellers
+        // Stop propellers
         this.animatePropellers(drone, false);
 
-        // SIMPLE: Reset all user data
+        // Clear all user data
         drone.userData = {};
 
         console.log(`✅ RESET COMPLETE: ${droneId} at origin (0,0,0)`);

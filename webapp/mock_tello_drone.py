@@ -327,7 +327,7 @@ class MockTelloDrone:
             self.is_flying = False
             self.sdk_mode = False
             self.stream_on = False
-            
+
             # Reset ALL state to initial values
             self.state = {
                 'mid': -1,     # Mission pad ID
@@ -351,12 +351,13 @@ class MockTelloDrone:
                 'agy': 0.0,    # Acceleration Y
                 'agz': -1000.0  # Acceleration Z (gravity)
             }
-            
+
+            self.logger.info(f"   After reset - x:{self.state['x']}, y:{self.state['y']}, bat:{self.state['bat']}, time:{self.state['time']}")
             self.logger.info(f"🔄 RESET: {self.name} - everything reset to initial state")
-            
+
             # Force state broadcast
             self._force_state_broadcast()
-            
+
             return 'ok'
 
         # Handle speed setting

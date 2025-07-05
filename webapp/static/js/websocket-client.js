@@ -139,12 +139,10 @@ class WebSocketClient {
                 break;
 
             case 'drone_reset':
-                console.log("🔄 DRONE RESET:", message.drone_id, "- forcing immediate reset to origin");
+                console.log("🔄 EXPLICIT RESET:", message.drone_id, "- reset command executed");
                 if (this.app && this.app.threeScene) {
-                    // Force immediate reset regardless of current state
+                    // Force immediate reset when reset command is executed
                     this.app.threeScene.resetDroneToOrigin(message.drone_id);
-                    // Also update with reset state
-                    this.app.threeScene.updateDroneState(message.drone_id, message.data);
                 }
                 break;
 
