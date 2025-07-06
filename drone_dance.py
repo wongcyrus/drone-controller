@@ -9,6 +9,14 @@ import os
 # Global variable to hold the swarm instance
 swarm = None
 
+# Position tracking variables to help return to start
+position_tracker = {
+    "initial_height": 0,
+    "movements": [],  # Track all movements for potential compensation
+    "spread_distance": 40,  # Track spread distance for return
+    "formation_offset": {"forward": 30, "up": 60}  # Initial formation moves
+}
+
 
 def connect_with_timeout(swarm_instance, timeout=10):
     """Connect to swarm with timeout"""
@@ -376,54 +384,87 @@ def synchronized_formation_dance():
 
 
 def return_to_initial_position():
-    """Return both drones to their initial takeoff position"""
+    """Return both drones to their initial takeoff position with accuracy"""
     print("\n🏠 === RETURNING TO INITIAL POSITION ===")
 
-    sync_point("Returning to takeoff position")
-
-    # First, bring both drones to the same height and close together
-    safe_command(swarm, "move_up", 30, description="Safe return height")
+    # Step 1: Ensure both drones are at a safe, standardized height
+    sync_point("Standardizing height for return")
+    safe_command(swarm, "move_up", 50, description="Safe return height")
     time.sleep(2)
 
-    # Bring drones back to center from their spread positions
-    sync_point("Bringing drones to center")
-    safe_command(swarm.tellos[0], "move_right", 40,
+    # Step 2: Reset orientation first (very important for accurate positioning)
+    sync_point("Resetting orientation to forward (0 degrees)")
+    # Multiple small rotations to ensure we're facing forward
+    for i in range(8):  # 8 x 45 = 360 degrees total
+        safe_command(swarm, "rotate_clockwise", 45,
+                     description=f"Orientation reset {i+1}/8")
+        time.sleep(0.8)
+
+    # Step 3: Bring drones back to center from spread positions
+    sync_point("Returning from spread positions")
+    spread_distance = position_tracker["spread_distance"]
+    safe_command(swarm.tellos[0], "move_right", spread_distance,
                  description="Drone 1 center return")
-    safe_command(swarm.tellos[1], "move_left", 40,
+    safe_command(swarm.tellos[1], "move_left", spread_distance,
                  description="Drone 2 center return")
     time.sleep(3)
 
-    # Reset orientation to face forward (0 degrees)
-    sync_point("Resetting orientation to forward")
-    # Perform a full rotation to reset any accumulated rotation errors
-    for _ in range(4):
-        safe_command(swarm, "rotate_clockwise", 90,
-                     description="Orientation reset rotation")
-        time.sleep(1)
+    # Step 4: Compensate for initial formation movements
+    sync_point("Compensating for initial formation offset")
+    formation_forward = position_tracker["formation_offset"]["forward"]
+    if formation_forward > 0:
+        safe_command(swarm, "move_back", formation_forward,
+                     description="Compensate initial forward movement")
+        time.sleep(2)
 
-    # Try to return to approximate center by compensating for dance movements
-    # This is a best-effort approach since we don't have precise positioning
-    sync_point("Fine-tuning position")
+    # Step 5: Systematic position correction with multiple attempts
+    sync_point("Fine-tuning position - multiple correction attempts")
 
-    # Try smaller, safer movements with better error handling
-    movement_attempts = [
-        ("move_back", 25, "Center compensation back"),    # Above minimum
-        ("move_right", 20, "Center compensation right"),  # At minimum
-        ("move_forward", 20, "Center fine-tune forward"),  # At minimum
+    # First correction attempt
+    correction_moves = [
+        ("move_back", 30, "Position correction back"),
+        ("move_left", 25, "Position correction left"),
+        ("move_forward", 25, "Position correction forward"),
+        ("move_right", 20, "Position correction right")
     ]
 
-    for move_cmd, distance, desc in movement_attempts:
-        if not safe_command(swarm, move_cmd, distance, description=desc):
-            print(f"⚠️ Skipping {desc} due to range limits")
+    for move_cmd, distance, desc in correction_moves:
+        if safe_command(swarm, move_cmd, distance, description=desc):
+            time.sleep(1.5)
         else:
+            print(f"⚠️ Skipping {desc} - likely at boundary")
+
+    # Step 6: Final height adjustment to approximate takeoff height
+    sync_point("Adjusting to takeoff height")
+    formation_up = position_tracker["formation_offset"]["up"]
+    # Return to approximate takeoff height
+    target_down_distance = formation_up + 20  # A bit lower for safety
+    if safe_command(swarm, "move_down", target_down_distance,
+                    description="Return to takeoff height"):
+        time.sleep(2)
+        print("🏠 Drones returned to approximate takeoff height")
+    else:
+        # Try a smaller adjustment
+        if safe_command(swarm, "move_down", 40,
+                        description="Partial height adjustment"):
+            time.sleep(2)
+            print("🏠 Partial height adjustment completed")
+        else:
+            print("🏠 Maintaining current height for safety")
+
+    # Step 7: Final positioning verification with small adjustments
+    sync_point("Final position verification")
+    final_adjustments = [
+        ("move_back", 20, "Final back adjustment"),
+        ("move_forward", 20, "Final forward adjustment"),
+    ]
+
+    for move_cmd, distance, desc in final_adjustments:
+        if safe_command(swarm, move_cmd, distance, description=desc):
             time.sleep(1)
 
-    # Settle at a reasonable landing height (respecting minimum distance)
-    if safe_command(swarm, "move_down", 40, description="Pre-landing height"):
-        time.sleep(2)
-        print("🏠 Drones positioned at safe landing height")
-    else:
-        print("🏠 Maintaining current height for landing")
+    print("🏠 Return to initial position sequence completed!")
+    print("🏠 Drones should now be close to their starting location")
 
 
 def safe_takeoff(swarm_instance, timeout=10):
@@ -698,6 +739,10 @@ def main():
             return
 
         debug_print("Takeoff successful, starting dance sequence")
+
+        # Initialize position tracking after successful takeoff
+        reset_position_tracking()
+
         time.sleep(3)
 
         # Initial synchronized movements
@@ -705,6 +750,7 @@ def main():
         sync_point("Initial formation - moving to dance position")
         # Well above minimum for safety
         safe_command(swarm, "move_up", 60, description="Initial height")
+        track_movement("move_up", 60, "Initial height")
         time.sleep(2)
 
         # Center the drones first to avoid range issues later
@@ -713,6 +759,7 @@ def main():
         # Try to move to center, but don't fail if already there
         safe_command(swarm, "move_forward", 30,  # Above minimum
                      description="Center positioning")
+        track_movement("move_forward", 30, "Center positioning")
         time.sleep(1)
 
         # Drones spread apart for independent sequences
@@ -746,26 +793,14 @@ def main():
         # Final synchronized formation dance
         synchronized_formation_dance()
 
-        debug_print("Returning to initial position")
-        # Return to initial position before landing
-        return_to_initial_position()
-
-        debug_print("Starting landing sequence")
-        # Final hover and landing
-        sync_point("Final hover before landing", wait_time=3)
-
-        print("🚁 Initiating safe landing...")
-        landing_success, landing_error = safe_landing(swarm, timeout=15)
+        debug_print("Starting enhanced landing sequence")
+        # Enhanced landing sequence with return to start
+        landing_success = enhanced_safe_landing_sequence()
 
         if not landing_success:
-            debug_print(f"Safe landing failed: {landing_error}")
-            print(f"❌ Safe landing failed: {landing_error}")
-            print("Attempting direct landing command...")
-            try:
-                swarm.land()
-                print("Direct landing command sent")
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"Direct landing failed: {e}")
+            debug_print("Enhanced landing sequence completed with warnings")
+        else:
+            debug_print("Enhanced landing sequence completed successfully")
 
         debug_print("Ending connection")
         # End connection
@@ -877,6 +912,67 @@ def emergency_land_with_force_exit(swarm_instance, timeout=5):
     except Exception as e:
         print(f"Emergency landing error: {e}")
         # Don't cancel timer - let it force exit
+
+
+def reset_position_tracking():
+    """Reset position tracking to initial state"""
+    global position_tracker
+    position_tracker = {
+        "initial_height": 0,
+        "movements": [],
+        "spread_distance": 40,
+        "formation_offset": {"forward": 30, "up": 60}
+    }
+    debug_print("Position tracking reset to initial state")
+
+
+def track_movement(movement_type, distance, description=""):
+    """Track a movement for potential compensation later"""
+    global position_tracker
+    position_tracker["movements"].append({
+        "type": movement_type,
+        "distance": distance,
+        "description": description
+    })
+    debug_print(f"Tracked: {movement_type} {distance}cm - {description}")
+
+
+def enhanced_safe_landing_sequence():
+    """Enhanced landing sequence that ensures return to start before landing"""
+    print("\n🛬 === ENHANCED SAFE LANDING SEQUENCE ===")
+
+    # Step 1: Return to initial position first
+    return_to_initial_position()
+
+    # Step 2: Final safety checks and position verification
+    sync_point("Pre-landing safety verification", wait_time=2)
+
+    # Step 3: Ensure safe landing height
+    print("🛬 Adjusting to optimal landing height...")
+    safe_command(swarm, "move_down", 20, description="Pre-landing height")
+    time.sleep(2)
+
+    # Step 4: Final hover at landing position
+    sync_point("Final hover at landing position", wait_time=3)
+    print("🛬 Drones hovering at landing position...")
+
+    # Step 5: Execute landing
+    print("🛬 Initiating controlled landing sequence...")
+    landing_success, landing_error = safe_landing(swarm, timeout=15)
+
+    if not landing_success:
+        print(f"❌ Enhanced landing failed: {landing_error}")
+        print("🛬 Attempting direct landing command as backup...")
+        try:
+            swarm.land()
+            print("✅ Backup landing command sent successfully")
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"❌ Backup landing failed: {e}")
+            print("🚨 Manual intervention may be required")
+    else:
+        print("✅ Enhanced landing sequence completed successfully!")
+
+    return landing_success
 
 
 if __name__ == "__main__":

@@ -82,12 +82,12 @@ class ThreeScene {
 
     createLights() {
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
         this.scene.add(ambientLight);
         this.lights.push(ambientLight);
 
         // Main directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
         directionalLight.position.set(100, 100, 50);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
@@ -102,7 +102,7 @@ class ThreeScene {
         this.lights.push(directionalLight);
 
         // Fill light
-        const fillLight = new THREE.DirectionalLight(0x4080ff, 0.3);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 1);
         fillLight.position.set(-50, 50, -50);
         this.scene.add(fillLight);
         this.lights.push(fillLight);
@@ -134,7 +134,7 @@ class ThreeScene {
                 const groundMaterial = new THREE.MeshLambertMaterial({
                     map: texture,
                     transparent: true,
-                    opacity: 0.6,
+                    opacity: 0.9,
                     side: THREE.DoubleSide
                 });
 
