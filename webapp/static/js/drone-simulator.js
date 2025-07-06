@@ -166,6 +166,7 @@ class DroneSimulator {
         if (!drone || !drone.flying) return;
 
         const state = drone.state;
+        const maxBoundary = 200; // 2M from center (4M total world size)
 
         switch (direction) {
             case 'up':
@@ -176,16 +177,36 @@ class DroneSimulator {
                 if (state.h === 0) drone.flying = false;
                 break;
             case 'forward':
-                state.y += distance * 0.1; // Scale for 3D scene
+                const newY = state.y + distance;
+                if (Math.abs(newY) <= maxBoundary) {
+                    state.y = newY;
+                } else {
+                    console.log(`🚫 ${drone.name} hit boundary - forward movement blocked`);
+                }
                 break;
             case 'back':
-                state.y -= distance * 0.1;
+                const backY = state.y - distance;
+                if (Math.abs(backY) <= maxBoundary) {
+                    state.y = backY;
+                } else {
+                    console.log(`🚫 ${drone.name} hit boundary - back movement blocked`);
+                }
                 break;
             case 'left':
-                state.x -= distance * 0.1;
+                const leftX = state.x - distance;
+                if (Math.abs(leftX) <= maxBoundary) {
+                    state.x = leftX;
+                } else {
+                    console.log(`🚫 ${drone.name} hit boundary - left movement blocked`);
+                }
                 break;
             case 'right':
-                state.x += distance * 0.1;
+                const rightX = state.x + distance;
+                if (Math.abs(rightX) <= maxBoundary) {
+                    state.x = rightX;
+                } else {
+                    console.log(`🚫 ${drone.name} hit boundary - right movement blocked`);
+                }
                 break;
         }
 

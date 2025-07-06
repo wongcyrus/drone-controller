@@ -44,12 +44,12 @@ class ThreeScene {
     createScene() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0a0a0a);
-        this.scene.fog = new THREE.Fog(0x0a0a0a, 1000, 20000); // Extended fog range for infinite world
+        this.scene.fog = new THREE.Fog(0x0a0a0a, 200, 1000); // Adjusted fog range for 4M world
     }
 
     createCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 50000); // Increased far plane for infinite world
+        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000); // Adjusted far plane for 4M world
         this.camera.position.set(50, 50, 50);
         this.camera.lookAt(0, 0, 0);
     }
@@ -77,7 +77,7 @@ class ThreeScene {
         this.controls.screenSpacePanning = false;
         this.controls.maxPolarAngle = Math.PI / 2;
         this.controls.minDistance = 10;
-        this.controls.maxDistance = 10000; // Increased max distance for infinite world
+        this.controls.maxDistance = 500; // Adjusted max distance for 4M world
     }
 
     createLights() {
@@ -93,11 +93,11 @@ class ThreeScene {
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 10000; // Increased shadow distance for infinite world
-        directionalLight.shadow.camera.left = -1000;
-        directionalLight.shadow.camera.right = 1000;
-        directionalLight.shadow.camera.top = 1000;
-        directionalLight.shadow.camera.bottom = -1000;
+        directionalLight.shadow.camera.far = 1000; // Adjusted shadow distance for 4M world
+        directionalLight.shadow.camera.left = -300;
+        directionalLight.shadow.camera.right = 300;
+        directionalLight.shadow.camera.top = 300;
+        directionalLight.shadow.camera.bottom = -300;
         this.scene.add(directionalLight);
         this.lights.push(directionalLight);
 
@@ -109,12 +109,12 @@ class ThreeScene {
     }
 
     createEnvironment() {
-        // Infinite grid - much larger size
-        this.grid = new THREE.GridHelper(10000, 100, 0x444444, 0x222222);
+        // 4M x 4M grid (400cm x 400cm)
+        this.grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
         this.scene.add(this.grid);
 
-        // Larger axes helper for infinite world
-        this.axes = new THREE.AxesHelper(100);
+        // Axes helper scaled for 4M world
+        this.axes = new THREE.AxesHelper(50);
         this.scene.add(this.axes);
 
         // Load HKIIT logo texture for the floor
@@ -122,15 +122,15 @@ class ThreeScene {
         textureLoader.load(
             './static/img/HKIIT_logo_RGB_vertical.jpg',
             (texture) => {
-                // Configure texture settings for infinite world
+                // Configure texture settings for 4M x 4M world
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(200, 200); // Repeat the logo 200x200 times across the infinite floor
+                texture.repeat.set(4, 4); // Repeat the logo 4x4 times across the 4M floor
                 texture.minFilter = THREE.LinearFilter;
                 texture.magFilter = THREE.LinearFilter;
 
-                // Create infinite ground plane with logo texture
-                const groundGeometry = new THREE.PlaneGeometry(10000, 10000);
+                // Create 4M x 4M ground plane with logo texture
+                const groundGeometry = new THREE.PlaneGeometry(400, 400);
                 const groundMaterial = new THREE.MeshLambertMaterial({
                     map: texture,
                     transparent: true,
@@ -144,7 +144,7 @@ class ThreeScene {
                 ground.name = 'logoFloor';
                 this.scene.add(ground);
 
-                console.log('HKIIT logo texture loaded and applied to floor');
+                console.log('HKIIT logo texture loaded and applied to 4M x 4M floor');
             },
             (progress) => {
                 console.log('Loading HKIIT logo texture:', (progress.loaded / progress.total * 100) + '%');
@@ -152,8 +152,8 @@ class ThreeScene {
             (error) => {
                 console.error('Error loading HKIIT logo texture:', error);
 
-                // Fallback: create a simple infinite colored ground plane
-                const groundGeometry = new THREE.PlaneGeometry(10000, 10000);
+                // Fallback: create a simple 4M x 4M colored ground plane
+                const groundGeometry = new THREE.PlaneGeometry(400, 400);
                 const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
                 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
                 ground.rotation.x = -Math.PI / 2;
@@ -161,7 +161,7 @@ class ThreeScene {
                 ground.name = 'fallbackFloor';
                 this.scene.add(ground);
 
-                console.log('Fallback floor created due to texture loading error');
+                console.log('Fallback 4M x 4M floor created due to texture loading error');
             }
         );
     }
