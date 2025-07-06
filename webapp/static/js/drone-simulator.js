@@ -18,7 +18,7 @@ class DroneSimulator {
     addDrone(droneId, droneData = {}) {
         const defaultData = {
             id: droneId,
-            name: droneData.name || `Drone-${droneId}`,
+            name: droneData.name || `Tello-${droneId}`,
             ip: droneData.ip || '127.0.0.1',
             connected: droneData.connected || false,
             flying: false,
@@ -52,7 +52,7 @@ class DroneSimulator {
         const drone = { ...defaultData, ...droneData };
         this.drones.set(droneId, drone);
 
-        console.log(`Drone ${droneId} added to simulator`);
+        console.log(`${drone.name} (${droneId}) added to simulator`);
 
         if (this.onDroneListUpdate) {
             this.onDroneListUpdate();
@@ -63,6 +63,9 @@ class DroneSimulator {
 
     removeDrone(droneId) {
         if (this.drones.has(droneId)) {
+            const drone = this.drones.get(droneId);
+            const droneName = drone.name;
+
             this.drones.delete(droneId);
 
             if (this.selectedDroneId === droneId) {
@@ -72,7 +75,7 @@ class DroneSimulator {
                 }
             }
 
-            console.log(`Drone ${droneId} removed from simulator`);
+            console.log(`${droneName} (${droneId}) removed from simulator`);
 
             if (this.onDroneListUpdate) {
                 this.onDroneListUpdate();
@@ -94,7 +97,7 @@ class DroneSimulator {
             if (this.onDroneSelect) {
                 this.onDroneSelect(this.drones.get(droneId));
             }
-            console.log(`Selected drone: ${droneId}`);
+            console.log(`Selected ${this.drones.get(droneId).name} (${droneId})`);
         }
     }
 
@@ -111,7 +114,7 @@ class DroneSimulator {
             // Update flying status based on height
             drone.flying = drone.state.h > 0;
 
-            console.log(`Updated state for drone ${droneId}:`, newState);
+            console.log(`Updated state for ${drone.name} (${droneId}):`, newState);
 
             if (this.onDroneStateUpdate) {
                 this.onDroneStateUpdate(droneId, drone.state);
@@ -128,7 +131,7 @@ class DroneSimulator {
         const drone = this.drones.get(droneId);
         if (drone) {
             drone.connected = connected;
-            console.log(`Drone ${droneId} connection: ${connected}`);
+            console.log(`${drone.name} (${droneId}) connection: ${connected}`);
 
             if (this.onDroneListUpdate) {
                 this.onDroneListUpdate();
@@ -154,7 +157,7 @@ class DroneSimulator {
                 drone.commandHistory.shift();
             }
 
-            console.log(`Command recorded for drone ${droneId}: ${command} -> ${response}`);
+            console.log(`Command recorded for ${drone.name} (${droneId}): ${command} -> ${response}`);
         }
     }
 
@@ -273,7 +276,7 @@ class DroneSimulator {
             agz: -1000.0
         };
 
-        console.log(`🔄 Virtual drone ${droneId} reset to initial state`);
+        console.log(`🔄 ${drone.name} (${droneId}) reset to initial state`);
         this.updateDroneState(droneId, drone.state);
     }
 
@@ -282,6 +285,8 @@ class DroneSimulator {
         if (!drone) {
             return 'error Drone not found';
         }
+
+        console.log(`📡 Processing command for ${drone.name} (${droneId}): ${command}`);
 
         const parts = command.toLowerCase().split(' ');
         const cmd = parts[0];
@@ -297,6 +302,7 @@ class DroneSimulator {
 
                 case 'takeoff':
                     if (!drone.flying) {
+                        console.log(`🛫 ${drone.name} taking off...`);
                         this.simulateTakeoff(droneId);
                     } else {
                         response = 'error Already flying';
@@ -305,6 +311,7 @@ class DroneSimulator {
 
                 case 'land':
                     if (drone.flying) {
+                        console.log(`🛬 ${drone.name} landing...`);
                         this.simulateLanding(droneId);
                     } else {
                         response = 'error Not flying';
@@ -312,6 +319,7 @@ class DroneSimulator {
                     break;
 
                 case 'emergency':
+                    console.log(`🚨 ${drone.name} emergency stop!`);
                     this.simulateEmergency(droneId);
                     break;
 
@@ -328,6 +336,7 @@ class DroneSimulator {
                     if (args.length > 0 && !isNaN(args[0])) {
                         const distance = parseInt(args[0]);
                         if (distance >= 20 && distance <= 500) {
+                            console.log(`🚁 ${drone.name} moving ${cmd} ${distance}cm`);
                             this.simulateMovement(droneId, cmd, distance);
                         } else {
                             response = 'error Out of range';
@@ -342,6 +351,7 @@ class DroneSimulator {
                     if (args.length > 0 && !isNaN(args[0])) {
                         const angle = parseInt(args[0]);
                         if (angle >= 1 && angle <= 360) {
+                            console.log(`🔄 ${drone.name} rotating ${cmd} ${angle}°`);
                             this.simulateRotation(droneId, cmd, angle);
                         } else {
                             response = 'error Out of range';
@@ -356,6 +366,7 @@ class DroneSimulator {
                         const direction = args[0].toLowerCase();
                         if (['f', 'b', 'l', 'r'].includes(direction)) {
                             if (drone.flying) {
+                                console.log(`🤸 ${drone.name} performing flip ${direction}`);
                                 this.simulateFlip(droneId, direction);
                             } else {
                                 response = 'error Not flying';
@@ -397,9 +408,10 @@ class DroneSimulator {
     }
 
     createVirtualDrone() {
-        const droneId = `virtual_${this.nextDroneId++}`;
+        const droneNumber = this.nextDroneId++;
+        const droneId = `virtual_${droneNumber}`;
         const drone = this.addDrone(droneId, {
-            name: `Virtual Drone ${this.nextDroneId - 1}`,
+            name: `Virtual Tello ${droneNumber}`,
             connected: true,
             ip: 'virtual'
         });
@@ -440,7 +452,7 @@ class DroneSimulator {
         const state = drone.state;
 
         // Perform a single flip animation without continuous updates
-        console.log(`🔄 Starting flip animation for drone ${droneId} in direction: ${direction}`);
+        console.log(`🔄 Starting flip animation for ${drone.name} (${droneId}) in direction: ${direction}`);
 
         // Trigger immediate 3D animation
         this.triggerFlipAnimation(droneId, direction);
@@ -455,7 +467,7 @@ class DroneSimulator {
         const drone = this.drones.get(droneId);
         if (!drone) return;
 
-        console.log(`🚀 Sending flip trigger to 3D scene: direction=${direction}, droneId=${droneId}`);
+        console.log(`🚀 Sending flip trigger to 3D scene for ${drone.name} (${droneId}): direction=${direction}`);
 
         // Send a one-time flip trigger to the 3D scene
         const state = {
@@ -466,14 +478,14 @@ class DroneSimulator {
             }
         };
 
-        console.log(`State update with flip trigger:`, state._flipTrigger);
+        console.log(`State update with flip trigger for ${drone.name}:`, state._flipTrigger);
         this.updateDroneState(droneId, state);
 
         // Clear the trigger after a short delay to prevent repeated triggers
         setTimeout(() => {
             const clearedState = { ...drone.state };
             delete clearedState._flipTrigger;
-            console.log(`🧹 Clearing flip trigger for drone ${droneId}`);
+            console.log(`🧹 Clearing flip trigger for ${drone.name} (${droneId})`);
             this.updateDroneState(droneId, clearedState);
         }, 100);
     }

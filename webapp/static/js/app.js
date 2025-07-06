@@ -195,6 +195,7 @@ class DroneSimulatorApp {
                     const droneId = drone.id || drone.name;
                     if (!this.droneSimulator.getDrone(droneId)) {
                         this.droneSimulator.addDrone(droneId, {
+                            name: drone.name || droneId, // Ensure name is set
                             connected: drone.connected,
                             ip: drone.ip,
                             port: drone.port,
@@ -202,6 +203,10 @@ class DroneSimulatorApp {
                         });
                         console.log(`🚁 Added drone: ${droneId} (${drone.ip}:${drone.port})`);
                         this.threeScene.addDrone(droneId);
+                        // Update label with proper name
+                        if (drone.name && drone.name !== droneId) {
+                            this.threeScene.updateDroneLabelText(droneId, drone.name);
+                        }
                     }
                 });
                 break;
@@ -210,6 +215,10 @@ class DroneSimulatorApp {
                 if (!this.droneSimulator.getDrone(data.id)) {
                     this.droneSimulator.addDrone(data.id, data);
                     this.threeScene.addDrone(data.id);
+                    // Update label with proper name
+                    if (data.name && data.name !== data.id) {
+                        this.threeScene.updateDroneLabelText(data.id, data.name);
+                    }
                     this.logToConsole(`Drone ${data.id} connected`, 'info');
                 }
                 break;

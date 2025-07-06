@@ -14,6 +14,7 @@ class ThreeScene {
 
         // Scene objects
         this.drones = new Map(); // drone_id -> drone_object
+        this.droneLabels = new Map(); // drone_id -> label_element
         this.grid = null;
         this.axes = null;
         this.lights = [];
@@ -43,12 +44,12 @@ class ThreeScene {
     createScene() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0a0a0a);
-        this.scene.fog = new THREE.Fog(0x0a0a0a, 100, 1000);
+        this.scene.fog = new THREE.Fog(0x0a0a0a, 1000, 20000); // Extended fog range for infinite world
     }
 
     createCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000);
+        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 50000); // Increased far plane for infinite world
         this.camera.position.set(50, 50, 50);
         this.camera.lookAt(0, 0, 0);
     }
@@ -76,7 +77,7 @@ class ThreeScene {
         this.controls.screenSpacePanning = false;
         this.controls.maxPolarAngle = Math.PI / 2;
         this.controls.minDistance = 10;
-        this.controls.maxDistance = 500;
+        this.controls.maxDistance = 10000; // Increased max distance for infinite world
     }
 
     createLights() {
@@ -92,11 +93,11 @@ class ThreeScene {
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 500;
-        directionalLight.shadow.camera.left = -100;
-        directionalLight.shadow.camera.right = 100;
-        directionalLight.shadow.camera.top = 100;
-        directionalLight.shadow.camera.bottom = -100;
+        directionalLight.shadow.camera.far = 10000; // Increased shadow distance for infinite world
+        directionalLight.shadow.camera.left = -1000;
+        directionalLight.shadow.camera.right = 1000;
+        directionalLight.shadow.camera.top = 1000;
+        directionalLight.shadow.camera.bottom = -1000;
         this.scene.add(directionalLight);
         this.lights.push(directionalLight);
 
@@ -108,21 +109,61 @@ class ThreeScene {
     }
 
     createEnvironment() {
-        // Grid
-        this.grid = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
+        // Infinite grid - much larger size
+        this.grid = new THREE.GridHelper(10000, 100, 0x444444, 0x222222);
         this.scene.add(this.grid);
 
-        // Axes helper
-        this.axes = new THREE.AxesHelper(20);
+        // Larger axes helper for infinite world
+        this.axes = new THREE.AxesHelper(100);
         this.scene.add(this.axes);
 
-        // Ground plane (invisible, for shadows)
-        const groundGeometry = new THREE.PlaneGeometry(500, 500);
-        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
+        // Load HKIIT logo texture for the floor
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+            './static/img/HKIIT_logo_RGB_vertical.jpg',
+            (texture) => {
+                // Configure texture settings for infinite world
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(200, 200); // Repeat the logo 200x200 times across the infinite floor
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+
+                // Create infinite ground plane with logo texture
+                const groundGeometry = new THREE.PlaneGeometry(10000, 10000);
+                const groundMaterial = new THREE.MeshLambertMaterial({
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide
+                });
+
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                ground.name = 'logoFloor';
+                this.scene.add(ground);
+
+                console.log('HKIIT logo texture loaded and applied to floor');
+            },
+            (progress) => {
+                console.log('Loading HKIIT logo texture:', (progress.loaded / progress.total * 100) + '%');
+            },
+            (error) => {
+                console.error('Error loading HKIIT logo texture:', error);
+
+                // Fallback: create a simple infinite colored ground plane
+                const groundGeometry = new THREE.PlaneGeometry(10000, 10000);
+                const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                ground.name = 'fallbackFloor';
+                this.scene.add(ground);
+
+                console.log('Fallback floor created due to texture loading error');
+            }
+        );
     }
 
     createDroneModel(droneId) {
@@ -206,6 +247,19 @@ class ThreeScene {
         this.scene.add(droneModel);
         this.drones.set(droneId, droneModel);
 
+        // Create and store drone label
+        // Try to get drone name from simulator if available
+        let droneName = droneId;
+        if (window.app && window.app.droneSimulator) {
+            const drone = window.app.droneSimulator.getDrone(droneId);
+            if (drone && drone.name) {
+                droneName = drone.name;
+            }
+        }
+
+        const label = this.createDroneLabel(droneId, droneName);
+        this.droneLabels.set(droneId, label);
+
         console.log(`Added drone ${droneId} to scene`);
     }
 
@@ -214,8 +268,68 @@ class ThreeScene {
         if (drone) {
             this.scene.remove(drone);
             this.drones.delete(droneId);
+
+            // Remove and dispose drone label
+            const label = this.droneLabels.get(droneId);
+            if (label) {
+                label.parentNode.removeChild(label);
+                this.droneLabels.delete(droneId);
+                console.log(`Removed label for drone ${droneId}`);
+            }
+
             console.log(`Removed drone ${droneId} from scene`);
         }
+    }
+
+    createDroneLabel(droneId, droneName) {
+        // Create a label element
+        const label = document.createElement('div');
+        label.className = 'drone-label';
+        label.textContent = droneName || droneId;
+
+        // Append to the canvas container
+        const canvasContainer = this.canvas.parentElement;
+        canvasContainer.style.position = 'relative';
+        canvasContainer.appendChild(label);
+
+        return label;
+    }
+
+    updateDroneLabel(droneId) {
+        const drone = this.drones.get(droneId);
+        const label = this.droneLabels.get(droneId);
+
+        if (!drone || !label) return;
+
+        // Get drone position in world coordinates
+        const dronePosition = new THREE.Vector3();
+        drone.getWorldPosition(dronePosition);
+
+        // Add offset above the drone
+        dronePosition.y += 8; // Label appears above drone
+
+        // Convert to screen coordinates
+        const screenPosition = dronePosition.clone();
+        screenPosition.project(this.camera);
+
+        // Convert normalized device coordinates to screen coordinates
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const x = (screenPosition.x * 0.5 + 0.5) * canvasRect.width;
+        const y = (-screenPosition.y * 0.5 + 0.5) * canvasRect.height;
+
+        // Update label position
+        label.style.left = `${x - (label.offsetWidth / 2)}px`;
+        label.style.top = `${y - label.offsetHeight}px`;
+
+        // Hide label if drone is behind camera or too far away
+        const isVisible = screenPosition.z < 1 && dronePosition.distanceTo(this.camera.position) < 1000;
+        label.style.display = isVisible ? 'block' : 'none';
+    }
+
+    updateAllDroneLabels() {
+        this.droneLabels.forEach((label, droneId) => {
+            this.updateDroneLabel(droneId);
+        });
     }
 
     updateDroneState(droneId, state) {
@@ -233,13 +347,14 @@ class ThreeScene {
 
         if (isJSUpdate) {
             // Handle position updates from JavaScript simulator
+            // No range constraints - infinite world allows any position
             const targetPosition = {
                 x: state.x !== undefined ? state.x : drone.position.x,
                 y: state.h !== undefined ? state.h * 0.1 : drone.position.y, // Height scaling
                 z: state.y !== undefined ? state.y : drone.position.z
             };
 
-            // Animate to target position smoothly
+            // Animate to target position smoothly (no bounds checking)
             this.animateToPosition(drone, targetPosition);
 
             console.log(`JS Update: Moving drone ${droneId} to position:`, targetPosition);
@@ -618,6 +733,7 @@ class ThreeScene {
             this.animationId = requestAnimationFrame(animate);
 
             this.controls.update();
+            this.updateAllDroneLabels(); // Update label positions
             this.renderer.render(this.scene, this.camera);
         };
 
