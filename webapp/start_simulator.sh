@@ -40,4 +40,4 @@ echo
 echo "🚀 Starting simulator..."
 
 # Start with single drone using multiple mode for proper WSL networking
-python3 mock_drone.py --host 0.0.0.0 --ip 0.0.0.0 --web-port 8000 --webapp-port 8766 --multiple 1
+python3 mock_drone.py --host 0.0.0.0 --ip 0.0.0.0 --web-port 8000 --webapp-port 8766 --multiple 2

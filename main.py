@@ -1,4 +1,4 @@
-from djitellopy import TelloSwarm
+from djitellopy import TelloSwarm, Tello
 import signal
 import sys
 import threading
@@ -72,9 +72,14 @@ def main():
     global swarm  # pylint: disable=global-statement
 
     try:
-        swarm = TelloSwarm.fromIps([
-            "172.28.3.205"
-        ])
+        # Create individual Tello instances for mock simulators
+        # Drone-1 on localhost:8889, Drone-2 on localhost:8890
+        wsl_ip = "172.28.3.205"
+        drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
+        drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+
+        # Create swarm from individual drones
+        swarm = TelloSwarm([drone1, drone2])
 
         print("Connecting to swarm...")
 

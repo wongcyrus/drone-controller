@@ -28,8 +28,16 @@ class EnhancedMockTelloDrone(MockTelloDrone):
 
     def __init__(self, drone_ip: str = "127.0.0.1",
                  name: str = "MockTello",
-                 command_port: int = None):
+                 command_port: int = None,
+                 initial_x: int = 0,
+                 initial_y: int = 0,
+                 initial_z: int = 0):
         super().__init__(drone_ip, name, command_port)
+        # Set initial position
+        self.state['x'] = initial_x
+        self.state['y'] = initial_y
+        self.state['z'] = initial_z
+
         self.ws_server = None
         self.webapp_enabled = True
         self.last_webapp_update = time.time()  # Initialize with current time
@@ -119,13 +127,13 @@ class EnhancedMockTelloDrone(MockTelloDrone):
         """Update the webapp with current drone state (throttled)"""
         if not self.webapp_enabled:
             return
-            
+
         current_time = time.time()
-        
+
         # Only update if enough time has passed or forced (e.g., from commands)
         if not force and (current_time - self.last_webapp_update) < self.webapp_update_interval:
             return
-            
+
         try:
             if ws_server and ws_server.loop and ws_server.loop.is_running():
                 # Only log forced updates (from commands), not periodic ones
@@ -176,11 +184,16 @@ class EnhancedMockTelloDrone(MockTelloDrone):
 
 
 def create_multi_drone_system(num_drones=3, start_ip="127.0.0.1", webapp_port=8765, web_port=8000, host='0.0.0.0'):
-    """Create a system with multiple drones and webapp"""
+    """Create a system with multiple drones and webapp
+
+    Creates multiple drones on the same IP address with sequential ports.
+    This approach works better in WSL/Docker environments where sequential
+    IP addresses may not be available.
+    """
 
     print(f"Starting WebSocket server on {host}:{webapp_port}...")
     ws_result = start_websocket_server(host, webapp_port)
-    
+
     if not ws_result:
         print(f"⚠️  WebSocket server failed to start on port {webapp_port}")
         print("   Continuing without webapp integration...")
@@ -205,26 +218,38 @@ def create_multi_drone_system(num_drones=3, start_ip="127.0.0.1", webapp_port=87
     print(f"Creating {num_drones} virtual drones...")
     drones = []
 
-    # Parse base IP
-    ip_parts = start_ip.split('.')
-    base_ip_int = int(ip_parts[-1])
+    # Spacing between drones on x-axis (in cm)
+    drone_spacing = 100  # 1 meter apart
 
     for i in range(num_drones):
-        # Create sequential IP addresses
-        ip_parts[-1] = str(base_ip_int + i)
-        drone_ip = '.'.join(ip_parts)
+        # Use the same IP for all drones (works better in WSL/Docker environments)
+        drone_ip = start_ip
 
         # Create sequential ports
         port = 8889 + i
 
         drone_name = f"Drone-{i+1}"
 
+        # Calculate initial position: spread drones along x-axis
+        # Center the formation around x=0
+        if num_drones == 1:
+            initial_x = 0
+        else:
+            # For multiple drones, spread them evenly around x=0
+            total_width = (num_drones - 1) * drone_spacing
+            initial_x = (i * drone_spacing) - (total_width // 2)
+
         try:
-            drone = EnhancedMockTelloDrone(drone_ip, drone_name, port)
+            drone = EnhancedMockTelloDrone(
+                drone_ip, drone_name, port,
+                initial_x=initial_x,
+                initial_y=0,
+                initial_z=0
+            )
             drone.webapp_enabled = webapp_enabled  # Set webapp status
             if drone.start():
                 drones.append(drone)
-                print(f"✅ Started {drone_name} on {drone_ip}:{port}")
+                print(f"✅ Started {drone_name} on {drone_ip}:{port} at position x={initial_x}")
             else:
                 print(f"❌ Failed to start {drone_name} on {drone_ip}:{port}")
         except Exception as e:
@@ -289,7 +314,7 @@ def main():
         # Single drone
         print(f"Starting WebSocket server on {args.host}:{args.webapp_port}...")
         ws_result = start_websocket_server(args.host, args.webapp_port)
-        
+
         if not ws_result:
             print(f"⚠️  WebSocket server failed to start on port {args.webapp_port}")
             print("   Continuing without webapp integration...")
@@ -309,7 +334,10 @@ def main():
             web_thread.start()
             print("✅ Web server started successfully")
 
-        drone = EnhancedMockTelloDrone(args.ip, args.name, args.port)
+        drone = EnhancedMockTelloDrone(
+            args.ip, args.name, args.port,
+            initial_x=0, initial_y=0, initial_z=0
+        )
         drone.webapp_enabled = webapp_enabled  # Set webapp status
         if drone.start():
             drones = [drone]
