@@ -351,6 +351,23 @@ class DroneSimulator {
                     }
                     break;
 
+                case 'flip':
+                    if (args.length > 0) {
+                        const direction = args[0].toLowerCase();
+                        if (['f', 'b', 'l', 'r'].includes(direction)) {
+                            if (drone.flying) {
+                                this.simulateFlip(droneId, direction);
+                            } else {
+                                response = 'error Not flying';
+                            }
+                        } else {
+                            response = 'error Invalid direction';
+                        }
+                    } else {
+                        response = 'error Missing direction';
+                    }
+                    break;
+
                 case 'speed?':
                     response = '10';
                     break;
@@ -415,6 +432,52 @@ class DroneSimulator {
             });
         }, 1000); // Update every second
     }
+
+    simulateFlip(droneId, direction) {
+        const drone = this.drones.get(droneId);
+        if (!drone || !drone.flying) return;
+
+        const state = drone.state;
+
+        // Perform a single flip animation without continuous updates
+        console.log(`🔄 Starting flip animation for drone ${droneId} in direction: ${direction}`);
+
+        // Trigger immediate 3D animation
+        this.triggerFlipAnimation(droneId, direction);
+
+        // Drain battery for flip maneuver
+        state.bat = Math.max(0, state.bat - 2);
+
+        this.updateDroneState(droneId, state);
+    }
+
+    triggerFlipAnimation(droneId, direction) {
+        const drone = this.drones.get(droneId);
+        if (!drone) return;
+
+        console.log(`🚀 Sending flip trigger to 3D scene: direction=${direction}, droneId=${droneId}`);
+
+        // Send a one-time flip trigger to the 3D scene
+        const state = {
+            ...drone.state,
+            _flipTrigger: {
+                direction: direction,
+                timestamp: Date.now()
+            }
+        };
+
+        console.log(`State update with flip trigger:`, state._flipTrigger);
+        this.updateDroneState(droneId, state);
+
+        // Clear the trigger after a short delay to prevent repeated triggers
+        setTimeout(() => {
+            const clearedState = { ...drone.state };
+            delete clearedState._flipTrigger;
+            console.log(`🧹 Clearing flip trigger for drone ${droneId}`);
+            this.updateDroneState(droneId, clearedState);
+        }, 100);
+    }
+
 }
 
 // Export for use in other scripts

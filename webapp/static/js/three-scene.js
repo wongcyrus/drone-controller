@@ -199,7 +199,8 @@ class ThreeScene {
         // Initialize userData for animation tracking
         droneModel.userData = {
             animationId: null,
-            isStable: true
+            isStable: true,
+            isFlipping: false
         };
 
         this.scene.add(droneModel);
@@ -244,15 +245,48 @@ class ThreeScene {
             console.log(`JS Update: Moving drone ${droneId} to position:`, targetPosition);
         }
 
-        // Always handle rotation and LED updates (from both server and JS)
-        if (state.yaw !== undefined) {
-            this.animateToRotation(drone, 'y', THREE.MathUtils.degToRad(state.yaw));
-        }
-        if (state.pitch !== undefined) {
-            this.animateToRotation(drone, 'x', THREE.MathUtils.degToRad(state.pitch));
-        }
-        if (state.roll !== undefined) {
-            this.animateToRotation(drone, 'z', THREE.MathUtils.degToRad(state.roll));
+        // Handle one-time flip animation trigger
+        if (state._flipTrigger && !drone.userData.isFlipping) {
+            const flipData = state._flipTrigger;
+            const direction = flipData.direction;
+
+            // Mark drone as currently flipping to prevent repeated triggers
+            drone.userData.isFlipping = true;
+
+            console.log(`🎬 Triggering 3D flip animation for direction: ${direction}`);
+            console.log(`Drone current rotation:`, {
+                x: THREE.MathUtils.radToDeg(drone.rotation.x),
+                y: THREE.MathUtils.radToDeg(drone.rotation.y),
+                z: THREE.MathUtils.radToDeg(drone.rotation.z)
+            });
+
+            switch (direction) {
+                case 'f': // forward flip - pitch forward (around x-axis)
+                    this.animateFlip(drone, 'x', 360, 'forward');
+                    break;
+                case 'b': // backward flip - pitch backward (around x-axis)
+                    this.animateFlip(drone, 'x', -360, 'backward');
+                    break;
+                case 'l': // left flip - roll left (around z-axis)
+                    this.animateFlip(drone, 'z', 360, 'left');
+                    break;
+                case 'r': // right flip - roll right (around z-axis)
+                    this.animateFlip(drone, 'z', -360, 'right');
+                    break;
+            }
+        } else if (state._flipTrigger && drone.userData.isFlipping) {
+            console.log(`⚠️ Flip trigger ignored - drone already flipping`);
+        } else {
+            // Normal rotation animations (from both server and JS)
+            if (state.yaw !== undefined) {
+                this.animateToRotation(drone, 'y', THREE.MathUtils.degToRad(state.yaw));
+            }
+            if (state.pitch !== undefined) {
+                this.animateToRotation(drone, 'x', THREE.MathUtils.degToRad(state.pitch));
+            }
+            if (state.roll !== undefined) {
+                this.animateToRotation(drone, 'z', THREE.MathUtils.degToRad(state.roll));
+            }
         }
 
         // Update LED color based on battery
@@ -371,18 +405,25 @@ class ThreeScene {
         requestAnimationFrame(animate);
     }
 
-    easeInOutCubic(t) {
-        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    }
-
-    animateToPositionFast(drone, targetPosition, duration = 0.3) {
-        const startPosition = {
-            x: drone.position.x,
-            y: drone.position.y,
-            z: drone.position.z
+    animateFlip(drone, axis, totalRotation, direction) {
+        // Store the current rotation as the original position
+        const originalRotation = {
+            x: drone.rotation.x,
+            y: drone.rotation.y,
+            z: drone.rotation.z
         };
 
-        // Fast animation for emergency reset
+        const startRotation = drone.rotation[axis];
+        const targetRotation = startRotation + THREE.MathUtils.degToRad(totalRotation);
+
+        console.log(`🎬 Starting flip animation: ${direction}, axis: ${axis}, rotation: ${totalRotation}°`);
+        console.log(`Original rotation:`, {
+            x: THREE.MathUtils.radToDeg(originalRotation.x),
+            y: THREE.MathUtils.radToDeg(originalRotation.y),
+            z: THREE.MathUtils.radToDeg(originalRotation.z)
+        });
+
+        const duration = 2.0; // Slower 2 second flip for complete visibility
         let progress = 0;
         const startTime = performance.now();
 
@@ -390,51 +431,42 @@ class ThreeScene {
             const elapsed = (currentTime - startTime) / 1000;
             progress = Math.min(elapsed / duration, 1);
 
-            // Use faster easing for emergency
-            const easeProgress = this.easeInOutQuad(progress);
+            // Use LINEAR progression for consistent rotation speed (no easing)
+            // This ensures we see the full 360-degree rotation clearly
+            const currentRotation = startRotation + (THREE.MathUtils.degToRad(totalRotation) * progress);
+            drone.rotation[axis] = currentRotation;
 
-            drone.position.x = THREE.MathUtils.lerp(startPosition.x, targetPosition.x, easeProgress);
-            drone.position.y = THREE.MathUtils.lerp(startPosition.y, targetPosition.y, easeProgress);
-            drone.position.z = THREE.MathUtils.lerp(startPosition.z, targetPosition.z, easeProgress);
-
-            if (progress < 1) {
-                drone.userData.animationId = requestAnimationFrame(animate);
-            } else {
-                drone.position.set(targetPosition.x, targetPosition.y, targetPosition.z);
-                drone.userData.animationId = null;
-                console.log(`🎯 Drone reached origin (0,0,0)`);
+            // Add some visual effects during flip
+            if (progress > 0.1 && progress < 0.9) {
+                // Add slight position bobbing during flip
+                const bobAmount = Math.sin(progress * Math.PI * 4) * 0.2;
+                drone.position.y += bobAmount * 0.03;
             }
-        };
 
-        drone.userData.animationId = requestAnimationFrame(animate);
-    }
-
-    animateToRotationFast(drone, axis, targetRotation, duration = 0.3) {
-        const currentRotation = drone.rotation[axis];
-
-        if (Math.abs(targetRotation - currentRotation) < 0.01) {
-            drone.rotation[axis] = targetRotation;
-            return;
-        }
-
-        let progress = 0;
-        const startTime = performance.now();
-
-        const animate = (currentTime) => {
-            const elapsed = (currentTime - startTime) / 1000;
-            progress = Math.min(elapsed / duration, 1);
-
-            const easeProgress = this.easeInOutQuad(progress);
-            drone.rotation[axis] = THREE.MathUtils.lerp(currentRotation, targetRotation, easeProgress);
+            // Debug logging every 10% progress to see the full rotation
+            if (Math.floor(progress * 10) !== Math.floor((progress - 0.1) * 10)) {
+                console.log(`Flip progress: ${Math.floor(progress * 100)}%, ${axis} rotation: ${THREE.MathUtils.radToDeg(currentRotation)}°`);
+            }
 
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                drone.rotation[axis] = targetRotation;
+                // Return ALL rotations to horizontal position (0,0,0)
+                drone.rotation.x = 0;
+                drone.rotation.y = 0;
+                drone.rotation.z = 0;
+
+                drone.userData.isFlipping = false; // Reset flipping flag
+                console.log(`✅ 3D flip animation completed for direction: ${direction}`);
+                console.log(`Total rotation completed: ${totalRotation}°, final rotation reset to horizontal: (0°, 0°, 0°)`);
             }
         };
 
         requestAnimationFrame(animate);
+    }
+
+    easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
     easeInOutQuad(t) {

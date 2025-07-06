@@ -148,6 +148,26 @@ def main():
             swarm.move_up(30)  # Add some extra height
             time.sleep(2)
 
+            # Perform flips in all directions with a longer wait time
+            print("Executing flip forward...")
+            swarm.flip_forward()
+            time.sleep(3)
+            print("Executing flip back...")
+            swarm.flip_back()
+            time.sleep(3)
+            print("Executing flip left...")
+            swarm.flip_left()
+            time.sleep(3)
+            print("Executing flip right...")
+            swarm.flip_right()
+            time.sleep(3)
+            print("All flips completed successfully!")
+
+            # Ensure adequate height for flip (move up if needed)
+            print("Ensuring adequate height for flip...")
+            swarm.move_up(30)  # Add some extra height
+            time.sleep(2)
+
             # Perform the flip with a longer wait time
             print("Executing flip...")
             swarm.flip_forward()
