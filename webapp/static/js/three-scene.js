@@ -44,12 +44,12 @@ class ThreeScene {
     createScene() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0a0a0a);
-        this.scene.fog = new THREE.Fog(0x0a0a0a, 200, 1000); // Adjusted fog range for 4M world
+        this.scene.fog = new THREE.Fog(0x0a0a0a, 100, 500); // Adjusted fog range for 2M world
     }
 
     createCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000); // Adjusted far plane for 4M world
+        this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000); // Adjusted far plane for 2M world
         this.camera.position.set(50, 50, 50);
         this.camera.lookAt(0, 0, 0);
     }
@@ -77,7 +77,7 @@ class ThreeScene {
         this.controls.screenSpacePanning = false;
         this.controls.maxPolarAngle = Math.PI / 2;
         this.controls.minDistance = 10;
-        this.controls.maxDistance = 500; // Adjusted max distance for 4M world
+        this.controls.maxDistance = 250; // Adjusted max distance for 2M world
     }
 
     createLights() {
@@ -93,11 +93,11 @@ class ThreeScene {
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 1000; // Adjusted shadow distance for 4M world
-        directionalLight.shadow.camera.left = -300;
-        directionalLight.shadow.camera.right = 300;
-        directionalLight.shadow.camera.top = 300;
-        directionalLight.shadow.camera.bottom = -300;
+        directionalLight.shadow.camera.far = 500; // Adjusted shadow distance for 2M world
+        directionalLight.shadow.camera.left = -150;
+        directionalLight.shadow.camera.right = 150;
+        directionalLight.shadow.camera.top = 150;
+        directionalLight.shadow.camera.bottom = -150;
         this.scene.add(directionalLight);
         this.lights.push(directionalLight);
 
@@ -109,12 +109,12 @@ class ThreeScene {
     }
 
     createEnvironment() {
-        // 4M x 4M grid (400cm x 400cm)
-        this.grid = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
+        // 2M x 2M grid (200cm x 200cm)
+        this.grid = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
         this.scene.add(this.grid);
 
-        // Axes helper scaled for 4M world
-        this.axes = new THREE.AxesHelper(50);
+        // Axes helper scaled for 2M world
+        this.axes = new THREE.AxesHelper(25);
         this.scene.add(this.axes);
 
         // Load HKIIT logo texture for the floor
@@ -122,15 +122,15 @@ class ThreeScene {
         textureLoader.load(
             './static/img/HKIIT_logo_RGB_vertical.jpg',
             (texture) => {
-                // Configure texture settings for 4M x 4M world
+                // Configure texture settings for 2M x 2M world
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(4, 4); // Repeat the logo 4x4 times across the 4M floor
+                texture.repeat.set(2, 2); // Repeat the logo 2x2 times across the 2M floor
                 texture.minFilter = THREE.LinearFilter;
                 texture.magFilter = THREE.LinearFilter;
 
-                // Create 4M x 4M ground plane with logo texture
-                const groundGeometry = new THREE.PlaneGeometry(400, 400);
+                // Create 2M x 2M ground plane with logo texture
+                const groundGeometry = new THREE.PlaneGeometry(200, 200);
                 const groundMaterial = new THREE.MeshLambertMaterial({
                     map: texture,
                     transparent: true,
@@ -144,7 +144,7 @@ class ThreeScene {
                 ground.name = 'logoFloor';
                 this.scene.add(ground);
 
-                console.log('HKIIT logo texture loaded and applied to 4M x 4M floor');
+                console.log('HKIIT logo texture loaded and applied to 2M x 2M floor');
             },
             (progress) => {
                 console.log('Loading HKIIT logo texture:', (progress.loaded / progress.total * 100) + '%');
@@ -152,8 +152,8 @@ class ThreeScene {
             (error) => {
                 console.error('Error loading HKIIT logo texture:', error);
 
-                // Fallback: create a simple 4M x 4M colored ground plane
-                const groundGeometry = new THREE.PlaneGeometry(400, 400);
+                // Fallback: create a simple 2M x 2M colored ground plane
+                const groundGeometry = new THREE.PlaneGeometry(200, 200);
                 const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
                 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
                 ground.rotation.x = -Math.PI / 2;
@@ -161,7 +161,7 @@ class ThreeScene {
                 ground.name = 'fallbackFloor';
                 this.scene.add(ground);
 
-                console.log('Fallback 4M x 4M floor created due to texture loading error');
+                console.log('Fallback 2M x 2M floor created due to texture loading error');
             }
         );
     }

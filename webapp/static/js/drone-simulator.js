@@ -166,7 +166,7 @@ class DroneSimulator {
         if (!drone || !drone.flying) return;
 
         const state = drone.state;
-        const maxBoundary = 200; // 2M from center (4M total world size)
+        const maxBoundary = 100; // 1M from center (2M total world size for 2M x 2M area)
 
         switch (direction) {
             case 'up':
@@ -181,7 +181,7 @@ class DroneSimulator {
                 if (Math.abs(newY) <= maxBoundary) {
                     state.y = newY;
                 } else {
-                    console.log(`🚫 ${drone.name} hit boundary - forward movement blocked`);
+                    console.log(`🚫 ${drone.name} hit boundary - forward movement blocked (2M x 2M limit)`);
                 }
                 break;
             case 'back':
@@ -189,7 +189,7 @@ class DroneSimulator {
                 if (Math.abs(backY) <= maxBoundary) {
                     state.y = backY;
                 } else {
-                    console.log(`🚫 ${drone.name} hit boundary - back movement blocked`);
+                    console.log(`🚫 ${drone.name} hit boundary - back movement blocked (2M x 2M limit)`);
                 }
                 break;
             case 'left':
@@ -197,7 +197,7 @@ class DroneSimulator {
                 if (Math.abs(leftX) <= maxBoundary) {
                     state.x = leftX;
                 } else {
-                    console.log(`🚫 ${drone.name} hit boundary - left movement blocked`);
+                    console.log(`🚫 ${drone.name} hit boundary - left movement blocked (2M x 2M limit)`);
                 }
                 break;
             case 'right':
@@ -205,7 +205,7 @@ class DroneSimulator {
                 if (Math.abs(rightX) <= maxBoundary) {
                     state.x = rightX;
                 } else {
-                    console.log(`🚫 ${drone.name} hit boundary - right movement blocked`);
+                    console.log(`🚫 ${drone.name} hit boundary - right movement blocked (2M x 2M limit)`);
                 }
                 break;
         }

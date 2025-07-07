@@ -9,12 +9,12 @@ import os
 # Global variable to hold the swarm instance
 swarm = None
 
-# Position tracking variables to help return to start
+# Position tracking variables to help return to start - Updated for 2M x 2M boundary
 position_tracker = {
     "initial_height": 0,
     "movements": [],  # Track all movements for potential compensation
-    "spread_distance": 40,  # Track spread distance for return
-    "formation_offset": {"forward": 30, "up": 60}  # Initial formation moves
+    "spread_distance": 25,  # Reduced spread distance for 2M x 2M boundary
+    "formation_offset": {"forward": 20, "up": 40}  # Reduced initial formation moves
 }
 
 
@@ -157,48 +157,53 @@ def safe_command(drone_or_swarm, command, *args, description="command",
 
 
 def drone1_independent_sequence(drone):
-    """Independent movement sequence for Drone 1"""
+    """Independent movement sequence for Drone 1 - Compact 2M x 2M design"""
     print("🟦 Drone 1 - Independent sequence starting...")
 
     try:
-        # Spiral pattern (respecting 20cm minimum)
-        print("🟦 Drone 1 - Performing spiral pattern")
-        for i in range(3):  # Reduced iterations
+        # Compact circular pattern (staying within 50cm radius)
+        print("🟦 Drone 1 - Performing compact circular pattern")
+        for i in range(6):  # 6 sides for a hexagon-like circle
             try:
-                drone.move_forward(30)  # Minimum 20cm, using 30cm
+                drone.move_forward(20)  # Small movements to stay within bounds
                 time.sleep(0.5)
-                drone.rotate_clockwise(60)  # Larger rotation for fewer steps
+                drone.rotate_clockwise(60)  # 360/6 = 60 degrees
                 time.sleep(0.5)
-                # Only go up for first 2 iterations, minimum 20cm
-                if i < 2:
-                    drone.move_up(20)  # Minimum allowed
-                    time.sleep(0.5)
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"🟦 Drone 1 - Spiral step {i+1} error: {e}")
-                continue
-
-        # Square pattern (simplified to avoid range errors)
-        print("🟦 Drone 1 - Square pattern")
-        for loop_num in range(2):
-            try:
-                # Square movements with minimum 20cm
-                for _ in range(4):  # Use underscore for unused variable
-                    drone.move_forward(25)  # Above minimum
-                    time.sleep(0.5)
-                    drone.rotate_clockwise(90)
-                    time.sleep(0.5)
-
-                # Small height change between squares
-                if loop_num == 0:
+                # Minimal height changes
+                if i % 2 == 0:
                     drone.move_up(20)  # Minimum allowed
                     time.sleep(0.5)
                 else:
-                    drone.move_down(20)  # Back to original height
+                    drone.move_down(20)  # Back down
                     time.sleep(0.5)
-
             except Exception as e:  # pylint: disable=broad-except
-                print(f"🟦 Drone 1 - Square loop {loop_num+1} error: {e}")
+                print(f"🟦 Drone 1 - Circular step {i+1} error: {e}")
                 continue
+
+        # Tiny square pattern (within 40cm total movement)
+        print("🟦 Drone 1 - Compact square pattern")
+        try:
+            # Very small square movements to stay within 2M boundary
+            for _ in range(4):  # Complete square
+                drone.move_forward(20)  # Minimum distance
+                time.sleep(0.5)
+                drone.rotate_clockwise(90)
+                time.sleep(0.5)
+
+            # Single height adjustment
+            drone.move_up(20)  # Go up
+            time.sleep(0.5)
+
+            # Rotate in place for visual effect
+            for _ in range(4):
+                drone.rotate_clockwise(90)
+                time.sleep(0.3)
+
+            drone.move_down(20)  # Return to original height
+            time.sleep(0.5)
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🟦 Drone 1 - Compact square error: {e}")
 
         print("🟦 Drone 1 - Independent sequence completed!")
 
@@ -207,62 +212,67 @@ def drone1_independent_sequence(drone):
 
 
 def drone2_independent_sequence(drone):
-    """Independent movement sequence for Drone 2"""
+    """Independent movement sequence for Drone 2 - Compact 2M x 2M design"""
     print("🟨 Drone 2 - Independent sequence starting...")
 
     try:
-        # Diamond pattern (respecting 20cm minimum)
-        print("🟨 Drone 2 - Performing diamond pattern")
-        moves = [
-            ("move_forward", 30),  # Above 20cm minimum
-            ("move_right", 30),    # Above 20cm minimum
-            ("move_back", 30),     # Above 20cm minimum
-            ("move_left", 30)      # Above 20cm minimum
-        ]
-
-        for move, distance in moves:
-            try:
-                getattr(drone, move)(distance)
-                time.sleep(0.8)
-                drone.rotate_clockwise(60)  # Larger rotation
-                time.sleep(0.3)
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"🟨 Drone 2 - Diamond move {move} error: {e}")
-                continue
-
-        # Vertical dance (respecting 20cm minimum)
-        print("🟨 Drone 2 - Vertical dance pattern")
-        for i in range(2):  # Reduced iterations
-            try:
-                drone.move_up(25)  # Above minimum
-                time.sleep(0.5)
-                drone.rotate_clockwise(180)
-                time.sleep(0.5)
-                drone.move_down(25)  # Above minimum
-                time.sleep(0.5)
-                drone.rotate_counter_clockwise(180)
-                time.sleep(0.5)
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"🟨 Drone 2 - Vertical dance step {i+1} error: {e}")
-                continue
-
-        # Triangle pattern (new pattern with valid distances)
-        print("🟨 Drone 2 - Triangle pattern")
+        # Compact triangle pattern (staying within 60cm total)
+        print("🟨 Drone 2 - Performing compact triangle pattern")
         for i in range(3):  # Triangle has 3 sides
             try:
-                drone.move_forward(35)  # Well above minimum
+                drone.move_forward(20)  # Minimum distance to stay compact
                 time.sleep(0.5)
                 drone.rotate_clockwise(120)  # 360/3 = 120 degrees
                 time.sleep(0.5)
-                # Alternate height changes
-                if i % 2 == 0:
+                # Minimal height variation
+                if i == 1:  # Only middle side goes up
                     drone.move_up(20)  # Minimum allowed
-                else:
-                    drone.move_down(20)  # Minimum allowed
-                time.sleep(0.5)
+                    time.sleep(0.5)
             except Exception as e:  # pylint: disable=broad-except
                 print(f"🟨 Drone 2 - Triangle step {i+1} error: {e}")
                 continue
+
+        # Return to original height
+        try:
+            drone.move_down(20)
+            time.sleep(0.5)
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🟨 Drone 2 - Height return error: {e}")
+
+        # Vertical oscillation (in place)
+        print("🟨 Drone 2 - Vertical oscillation pattern")
+        try:
+            for i in range(3):  # 3 vertical movements
+                drone.move_up(20)  # Go up
+                time.sleep(0.5)
+                drone.rotate_clockwise(120)  # Rotate while going up
+                time.sleep(0.3)
+                drone.move_down(20)  # Go back down
+                time.sleep(0.5)
+                drone.rotate_counter_clockwise(120)  # Counter-rotate
+                time.sleep(0.3)
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🟨 Drone 2 - Vertical oscillation error: {e}")
+
+        # Figure-8 pattern (very compact)
+        print("🟨 Drone 2 - Compact figure-8 pattern")
+        try:
+            # First half of figure-8
+            for _ in range(4):  # Small circle
+                drone.move_forward(20)
+                time.sleep(0.3)
+                drone.rotate_clockwise(90)
+                time.sleep(0.3)
+
+            # Second half of figure-8 (counter-clockwise)
+            for _ in range(4):  # Small circle in opposite direction
+                drone.move_forward(20)
+                time.sleep(0.3)
+                drone.rotate_counter_clockwise(90)
+                time.sleep(0.3)
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🟨 Drone 2 - Figure-8 error: {e}")
 
         print("🟨 Drone 2 - Independent sequence completed!")
 
@@ -337,49 +347,55 @@ def synchronized_flip_sequence():
 
 
 def synchronized_formation_dance():
-    """Synchronized formation dance where drones move together"""
+    """Synchronized formation dance where drones move together - Compact 2M x 2M design"""
     print("\n💫 === SYNCHRONIZED FORMATION DANCE ===")
 
-    # Formation 1: Side by side movement (respecting 20cm minimum)
-    sync_point("Formation 1: Side by side")
-    safe_command(swarm, "move_forward", 40, description="Formation 1 forward")
+    # Formation 1: Gentle side by side movement (very small distances)
+    sync_point("Formation 1: Compact side by side")
+    safe_command(swarm, "move_forward", 20, description="Formation 1 forward")
     time.sleep(1.5)
-    safe_command(swarm, "move_back", 40, description="Formation 1 back")
+    safe_command(swarm, "move_back", 20, description="Formation 1 back")
     time.sleep(1.5)
 
-    # Formation 2: Hexagon movement (respecting distance limits)
-    sync_point("Formation 2: Hexagon movement")
-    for i in range(6):  # Hexagon has 6 sides
-        safe_command(swarm, "move_forward", 30,
-                     description=f"Hexagon step {i+1}")
+    # Formation 2: Small octagon movement (staying very compact)
+    sync_point("Formation 2: Micro octagon movement")
+    for i in range(8):  # Octagon has 8 sides
+        safe_command(swarm, "move_forward", 20,  # Minimum distance only
+                     description=f"Micro octagon step {i+1}")
         time.sleep(0.8)
-        # 360/6 = 60 degrees per turn
-        safe_command(swarm, "rotate_clockwise", 60,
-                     description=f"Hexagon rotate {i+1}")
+        # 360/8 = 45 degrees per turn
+        safe_command(swarm, "rotate_clockwise", 45,
+                     description=f"Micro octagon rotate {i+1}")
         time.sleep(0.8)
 
-    # Formation 3: Up and down waves (respecting 20cm minimum)
-    sync_point("Formation 3: Wave pattern")
-    for i in range(2):  # Reduced iterations
-        safe_command(swarm, "move_up", 30, description=f"Wave {i+1} up")
+    # Formation 3: Minimal up and down waves
+    sync_point("Formation 3: Minimal wave pattern")
+    for i in range(2):  # Just 2 small waves
+        safe_command(swarm, "move_up", 20, description=f"Wave {i+1} up")
         time.sleep(1)
-        safe_command(swarm, "move_forward", 35,
+        safe_command(swarm, "move_forward", 20,  # Very small forward
                      description=f"Wave {i+1} forward")
         time.sleep(1)
-        safe_command(swarm, "move_down", 30, description=f"Wave {i+1} down")
+        safe_command(swarm, "move_down", 20, description=f"Wave {i+1} down")
         time.sleep(1)
-        safe_command(swarm, "move_back", 35, description=f"Wave {i+1} back")
+        safe_command(swarm, "move_back", 20,  # Return to position
+                     description=f"Wave {i+1} back")
         time.sleep(1)
 
-    # Formation 4: Final octagon dance (8 sides for more interesting pattern)
-    sync_point("Formation 4: Octagon dance")
-    for i in range(8):
-        print(f"Octagon side {i+1}/8...")
-        safe_command(swarm, "move_forward", 25,
-                     description=f"Octagon side {i+1}")
+    # Formation 4: In-place rotation dance (no movement, just rotation)
+    sync_point("Formation 4: In-place rotation dance")
+    for i in range(4):
+        print(f"Rotation sequence {i+1}/4...")
+        safe_command(swarm, "rotate_clockwise", 90,
+                     description=f"Rotation dance {i+1}")
         time.sleep(1.2)
-        safe_command(swarm, "rotate_clockwise", 45,  # 360/8 = 45 degrees
-                     description=f"Octagon turn {i+1}")
+        # Small height variation while rotating
+        if i % 2 == 0:
+            safe_command(swarm, "move_up", 20,
+                         description=f"Rotation height up {i+1}")
+        else:
+            safe_command(swarm, "move_down", 20,
+                         description=f"Rotation height down {i+1}")
         time.sleep(1.2)
 
 
@@ -745,30 +761,30 @@ def main():
 
         time.sleep(3)
 
-        # Initial synchronized movements
+        # Initial synchronized movements - Compact for 2M x 2M boundary
         debug_print("Initial formation")
         sync_point("Initial formation - moving to dance position")
-        # Well above minimum for safety
-        safe_command(swarm, "move_up", 60, description="Initial height")
-        track_movement("move_up", 60, "Initial height")
+        # Reduced height for 2M x 2M boundary
+        safe_command(swarm, "move_up", 40, description="Initial height")
+        track_movement("move_up", 40, "Initial height")
         time.sleep(2)
 
         # Center the drones first to avoid range issues later
         debug_print("Centering drones")
         sync_point("Centering drones for optimal range")
-        # Try to move to center, but don't fail if already there
-        safe_command(swarm, "move_forward", 30,  # Above minimum
+        # Smaller centering move for 2M x 2M boundary
+        safe_command(swarm, "move_forward", 20,  # Minimum distance
                      description="Center positioning")
-        track_movement("move_forward", 30, "Center positioning")
+        track_movement("move_forward", 20, "Center positioning")
         time.sleep(1)
 
-        # Drones spread apart for independent sequences
+        # Drones spread apart for independent sequences - Reduced for 2M x 2M
         debug_print("Spreading drones")
         sync_point("Spreading apart for independent dance")
-        # Spread distance respecting 20cm minimum
-        safe_command(swarm.tellos[0], "move_left", 40,
+        # Much smaller spread distance for 2M x 2M boundary
+        safe_command(swarm.tellos[0], "move_left", 25,
                      description="Drone 1 spread left")
-        safe_command(swarm.tellos[1], "move_right", 40,
+        safe_command(swarm.tellos[1], "move_right", 25,
                      description="Drone 2 spread right")
         time.sleep(3)
 
@@ -777,11 +793,11 @@ def main():
         perform_independent_dance()
 
         debug_print("Returning to center formation")
-        # Come back together
+        # Come back together - Reduced distance for 2M x 2M boundary
         sync_point("Returning to center formation", wait_time=3)
-        safe_command(swarm.tellos[0], "move_right", 40,
+        safe_command(swarm.tellos[0], "move_right", 25,
                      description="Drone 1 return")
-        safe_command(swarm.tellos[1], "move_left", 40,
+        safe_command(swarm.tellos[1], "move_left", 25,
                      description="Drone 2 return")
         time.sleep(3)
 
@@ -915,13 +931,13 @@ def emergency_land_with_force_exit(swarm_instance, timeout=5):
 
 
 def reset_position_tracking():
-    """Reset position tracking to initial state"""
+    """Reset position tracking to initial state - Updated for 2M x 2M boundary"""
     global position_tracker
     position_tracker = {
         "initial_height": 0,
         "movements": [],
-        "spread_distance": 40,
-        "formation_offset": {"forward": 30, "up": 60}
+        "spread_distance": 25,  # Reduced for 2M x 2M boundary
+        "formation_offset": {"forward": 20, "up": 40}  # Reduced movements
     }
     debug_print("Position tracking reset to initial state")
 
