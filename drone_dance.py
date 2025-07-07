@@ -166,15 +166,19 @@ def drone1_independent_sequence(drone):
         for i in range(6):  # 6 sides for a hexagon-like circle
             try:
                 drone.move_forward(20)  # Small movements to stay within bounds
+                track_movement("move_forward", 20, f"Drone 1 circular step {i+1}", "drone1")
                 time.sleep(0.5)
                 drone.rotate_clockwise(60)  # 360/6 = 60 degrees
+                track_movement("rotate_clockwise", 60, f"Drone 1 circular rotate {i+1}", "drone1")
                 time.sleep(0.5)
                 # Minimal height changes
                 if i % 2 == 0:
                     drone.move_up(20)  # Minimum allowed
+                    track_movement("move_up", 20, f"Drone 1 circular up {i+1}", "drone1")
                     time.sleep(0.5)
                 else:
                     drone.move_down(20)  # Back down
+                    track_movement("move_down", 20, f"Drone 1 circular down {i+1}", "drone1")
                     time.sleep(0.5)
             except Exception as e:  # pylint: disable=broad-except
                 print(f"🟦 Drone 1 - Circular step {i+1} error: {e}")
@@ -184,22 +188,27 @@ def drone1_independent_sequence(drone):
         print("🟦 Drone 1 - Compact square pattern")
         try:
             # Very small square movements to stay within 2M boundary
-            for _ in range(4):  # Complete square
+            for i in range(4):  # Complete square
                 drone.move_forward(20)  # Minimum distance
+                track_movement("move_forward", 20, f"Drone 1 square step {i+1}", "drone1")
                 time.sleep(0.5)
                 drone.rotate_clockwise(90)
+                track_movement("rotate_clockwise", 90, f"Drone 1 square rotate {i+1}", "drone1")
                 time.sleep(0.5)
 
             # Single height adjustment
             drone.move_up(20)  # Go up
+            track_movement("move_up", 20, "Drone 1 square height up", "drone1")
             time.sleep(0.5)
 
             # Rotate in place for visual effect
-            for _ in range(4):
+            for i in range(4):
                 drone.rotate_clockwise(90)
+                track_movement("rotate_clockwise", 90, f"Drone 1 final rotate {i+1}", "drone1")
                 time.sleep(0.3)
 
             drone.move_down(20)  # Return to original height
+            track_movement("move_down", 20, "Drone 1 square height down", "drone1")
             time.sleep(0.5)
 
         except Exception as e:  # pylint: disable=broad-except
@@ -221,12 +230,15 @@ def drone2_independent_sequence(drone):
         for i in range(3):  # Triangle has 3 sides
             try:
                 drone.move_forward(20)  # Minimum distance to stay compact
+                track_movement("move_forward", 20, f"Drone 2 triangle step {i+1}", "drone2")
                 time.sleep(0.5)
                 drone.rotate_clockwise(120)  # 360/3 = 120 degrees
+                track_movement("rotate_clockwise", 120, f"Drone 2 triangle rotate {i+1}", "drone2")
                 time.sleep(0.5)
                 # Minimal height variation
                 if i == 1:  # Only middle side goes up
                     drone.move_up(20)  # Minimum allowed
+                    track_movement("move_up", 20, "Drone 2 triangle height up", "drone2")
                     time.sleep(0.5)
             except Exception as e:  # pylint: disable=broad-except
                 print(f"🟨 Drone 2 - Triangle step {i+1} error: {e}")
@@ -235,6 +247,7 @@ def drone2_independent_sequence(drone):
         # Return to original height
         try:
             drone.move_down(20)
+            track_movement("move_down", 20, "Drone 2 triangle height down", "drone2")
             time.sleep(0.5)
         except Exception as e:  # pylint: disable=broad-except
             print(f"🟨 Drone 2 - Height return error: {e}")
@@ -244,12 +257,16 @@ def drone2_independent_sequence(drone):
         try:
             for i in range(3):  # 3 vertical movements
                 drone.move_up(20)  # Go up
+                track_movement("move_up", 20, f"Drone 2 oscillation up {i+1}", "drone2")
                 time.sleep(0.5)
                 drone.rotate_clockwise(120)  # Rotate while going up
+                track_movement("rotate_clockwise", 120, f"Drone 2 oscillation rotate {i+1}", "drone2")
                 time.sleep(0.3)
                 drone.move_down(20)  # Go back down
+                track_movement("move_down", 20, f"Drone 2 oscillation down {i+1}", "drone2")
                 time.sleep(0.5)
                 drone.rotate_counter_clockwise(120)  # Counter-rotate
+                track_movement("rotate_counter_clockwise", 120, f"Drone 2 oscillation counter-rotate {i+1}", "drone2")
                 time.sleep(0.3)
         except Exception as e:  # pylint: disable=broad-except
             print(f"🟨 Drone 2 - Vertical oscillation error: {e}")
@@ -258,17 +275,21 @@ def drone2_independent_sequence(drone):
         print("🟨 Drone 2 - Compact figure-8 pattern")
         try:
             # First half of figure-8
-            for _ in range(4):  # Small circle
+            for i in range(4):  # Small circle
                 drone.move_forward(20)
+                track_movement("move_forward", 20, f"Drone 2 figure-8 step1 {i+1}", "drone2")
                 time.sleep(0.3)
                 drone.rotate_clockwise(90)
+                track_movement("rotate_clockwise", 90, f"Drone 2 figure-8 rotate1 {i+1}", "drone2")
                 time.sleep(0.3)
 
             # Second half of figure-8 (counter-clockwise)
-            for _ in range(4):  # Small circle in opposite direction
+            for i in range(4):  # Small circle in opposite direction
                 drone.move_forward(20)
+                track_movement("move_forward", 20, f"Drone 2 figure-8 step2 {i+1}", "drone2")
                 time.sleep(0.3)
                 drone.rotate_counter_clockwise(90)
+                track_movement("rotate_counter_clockwise", 90, f"Drone 2 figure-8 rotate2 {i+1}", "drone2")
                 time.sleep(0.3)
 
         except Exception as e:  # pylint: disable=broad-except
@@ -325,6 +346,7 @@ def synchronized_flip_sequence():
         sync_point("Moving to flip height")
         safe_command(swarm, "move_up", 50,  # Well above minimum for safety
                      description="Pre-flip height adjustment")
+        track_movement("move_up", 50, "Pre-flip height adjustment")
         time.sleep(2)
 
         # Synchronized flips in sequence
@@ -353,8 +375,10 @@ def synchronized_formation_dance():
     # Formation 1: Gentle side by side movement (very small distances)
     sync_point("Formation 1: Compact side by side")
     safe_command(swarm, "move_forward", 20, description="Formation 1 forward")
+    track_movement("move_forward", 20, "Formation 1 forward")
     time.sleep(1.5)
     safe_command(swarm, "move_back", 20, description="Formation 1 back")
+    track_movement("move_back", 20, "Formation 1 back")
     time.sleep(1.5)
 
     # Formation 2: Small octagon movement (staying very compact)
@@ -362,24 +386,30 @@ def synchronized_formation_dance():
     for i in range(8):  # Octagon has 8 sides
         safe_command(swarm, "move_forward", 20,  # Minimum distance only
                      description=f"Micro octagon step {i+1}")
+        track_movement("move_forward", 20, f"Micro octagon step {i+1}")
         time.sleep(0.8)
         # 360/8 = 45 degrees per turn
         safe_command(swarm, "rotate_clockwise", 45,
                      description=f"Micro octagon rotate {i+1}")
+        track_movement("rotate_clockwise", 45, f"Micro octagon rotate {i+1}")
         time.sleep(0.8)
 
     # Formation 3: Minimal up and down waves
     sync_point("Formation 3: Minimal wave pattern")
     for i in range(2):  # Just 2 small waves
         safe_command(swarm, "move_up", 20, description=f"Wave {i+1} up")
+        track_movement("move_up", 20, f"Wave {i+1} up")
         time.sleep(1)
         safe_command(swarm, "move_forward", 20,  # Very small forward
                      description=f"Wave {i+1} forward")
+        track_movement("move_forward", 20, f"Wave {i+1} forward")
         time.sleep(1)
         safe_command(swarm, "move_down", 20, description=f"Wave {i+1} down")
+        track_movement("move_down", 20, f"Wave {i+1} down")
         time.sleep(1)
         safe_command(swarm, "move_back", 20,  # Return to position
                      description=f"Wave {i+1} back")
+        track_movement("move_back", 20, f"Wave {i+1} back")
         time.sleep(1)
 
     # Formation 4: In-place rotation dance (no movement, just rotation)
@@ -388,99 +418,185 @@ def synchronized_formation_dance():
         print(f"Rotation sequence {i+1}/4...")
         safe_command(swarm, "rotate_clockwise", 90,
                      description=f"Rotation dance {i+1}")
+        track_movement("rotate_clockwise", 90, f"Rotation dance {i+1}")
         time.sleep(1.2)
         # Small height variation while rotating
         if i % 2 == 0:
             safe_command(swarm, "move_up", 20,
                          description=f"Rotation height up {i+1}")
+            track_movement("move_up", 20, f"Rotation height up {i+1}")
         else:
             safe_command(swarm, "move_down", 20,
                          description=f"Rotation height down {i+1}")
+            track_movement("move_down", 20, f"Rotation height down {i+1}")
         time.sleep(1.2)
 
 
 def return_to_initial_position():
-    """Return both drones to their initial takeoff position with accuracy"""
+    """Return both drones to their initial takeoff position with accuracy using tracked movements"""
     print("\n🏠 === RETURNING TO INITIAL POSITION ===")
+
+    # Get current estimated positions
+    swarm_pos = position_tracker["swarm_position"]
+    drone1_pos = position_tracker["drone_positions"]["drone1"]
+    drone2_pos = position_tracker["drone_positions"]["drone2"]
+
+    print(f"🏠 Current estimated positions:")
+    print(f"   Swarm: x={swarm_pos['x']}, y={swarm_pos['y']}, z={swarm_pos['z']}, rot={swarm_pos['rotation']}")
+    print(f"   Drone1: x={drone1_pos['x']}, y={drone1_pos['y']}, z={drone1_pos['z']}, rot={drone1_pos['rotation']}")
+    print(f"   Drone2: x={drone2_pos['x']}, y={drone2_pos['y']}, z={drone2_pos['z']}, rot={drone2_pos['rotation']}")
 
     # Step 1: Ensure both drones are at a safe, standardized height
     sync_point("Standardizing height for return")
     safe_command(swarm, "move_up", 50, description="Safe return height")
+    track_movement("move_up", 50, "Safe return height")
     time.sleep(2)
 
-    # Step 2: Reset orientation first (very important for accurate positioning)
+    # Step 2: First bring both individual drones back to their swarm center positions
+    sync_point("Returning individual drones to swarm formation")
+
+    # Calculate movements needed to center each drone relative to swarm
+    drone1_return_x = -drone1_pos["x"]
+    drone1_return_y = -drone1_pos["y"]
+    drone2_return_x = -drone2_pos["x"]
+    drone2_return_y = -drone2_pos["y"]
+
+    print(f"🏠 Drone1 needs: x={drone1_return_x}, y={drone1_return_y}")
+    print(f"🏠 Drone2 needs: x={drone2_return_x}, y={drone2_return_y}")
+
+    # Return drone 1 to center
+    if abs(drone1_return_x) > 10:  # Only move if significant displacement
+        if drone1_return_x > 0:
+            safe_command(swarm.tellos[0], "move_right", min(abs(drone1_return_x), 100),
+                        description=f"Drone 1 return X: {drone1_return_x}")
+            track_movement("move_right", min(abs(drone1_return_x), 100), "Drone 1 return X", "drone1")
+        else:
+            safe_command(swarm.tellos[0], "move_left", min(abs(drone1_return_x), 100),
+                        description=f"Drone 1 return X: {drone1_return_x}")
+            track_movement("move_left", min(abs(drone1_return_x), 100), "Drone 1 return X", "drone1")
+        time.sleep(2)
+
+    if abs(drone1_return_y) > 10:  # Only move if significant displacement
+        if drone1_return_y > 0:
+            safe_command(swarm.tellos[0], "move_forward", min(abs(drone1_return_y), 100),
+                        description=f"Drone 1 return Y: {drone1_return_y}")
+            track_movement("move_forward", min(abs(drone1_return_y), 100), "Drone 1 return Y", "drone1")
+        else:
+            safe_command(swarm.tellos[0], "move_back", min(abs(drone1_return_y), 100),
+                        description=f"Drone 1 return Y: {drone1_return_y}")
+            track_movement("move_back", min(abs(drone1_return_y), 100), "Drone 1 return Y", "drone1")
+        time.sleep(2)
+
+    # Return drone 2 to center
+    if abs(drone2_return_x) > 10:  # Only move if significant displacement
+        if drone2_return_x > 0:
+            safe_command(swarm.tellos[1], "move_right", min(abs(drone2_return_x), 100),
+                        description=f"Drone 2 return X: {drone2_return_x}")
+            track_movement("move_right", min(abs(drone2_return_x), 100), "Drone 2 return X", "drone2")
+        else:
+            safe_command(swarm.tellos[1], "move_left", min(abs(drone2_return_x), 100),
+                        description=f"Drone 2 return X: {drone2_return_x}")
+            track_movement("move_left", min(abs(drone2_return_x), 100), "Drone 2 return X", "drone2")
+        time.sleep(2)
+
+    if abs(drone2_return_y) > 10:  # Only move if significant displacement
+        if drone2_return_y > 0:
+            safe_command(swarm.tellos[1], "move_forward", min(abs(drone2_return_y), 100),
+                        description=f"Drone 2 return Y: {drone2_return_y}")
+            track_movement("move_forward", min(abs(drone2_return_y), 100), "Drone 2 return Y", "drone2")
+        else:
+            safe_command(swarm.tellos[1], "move_back", min(abs(drone2_return_y), 100),
+                        description=f"Drone 2 return Y: {drone2_return_y}")
+            track_movement("move_back", min(abs(drone2_return_y), 100), "Drone 2 return Y", "drone2")
+        time.sleep(2)
+
+    # Reset individual drone position tracking since they're now centered
+    position_tracker["drone_positions"]["drone1"] = {"x": 0, "y": 0, "z": 0, "rotation": 0}
+    position_tracker["drone_positions"]["drone2"] = {"x": 0, "y": 0, "z": 0, "rotation": 0}
+
+    # Step 3: Reset orientation for both drones
     sync_point("Resetting orientation to forward (0 degrees)")
-    # Multiple small rotations to ensure we're facing forward
-    for i in range(8):  # 8 x 45 = 360 degrees total
-        safe_command(swarm, "rotate_clockwise", 45,
-                     description=f"Orientation reset {i+1}/8")
-        time.sleep(0.8)
 
-    # Step 3: Bring drones back to center from spread positions
-    sync_point("Returning from spread positions")
-    spread_distance = position_tracker["spread_distance"]
-    safe_command(swarm.tellos[0], "move_right", spread_distance,
-                 description="Drone 1 center return")
-    safe_command(swarm.tellos[1], "move_left", spread_distance,
-                 description="Drone 2 center return")
-    time.sleep(3)
+    # Calculate rotation needed to return to 0 degrees
+    swarm_rotation_needed = -swarm_pos["rotation"]
+    if abs(swarm_rotation_needed) > 10:  # Only rotate if significant rotation needed
+        # Normalize to shortest rotation path
+        if swarm_rotation_needed > 180:
+            swarm_rotation_needed -= 360
+        elif swarm_rotation_needed < -180:
+            swarm_rotation_needed += 360
 
-    # Step 4: Compensate for initial formation movements
-    sync_point("Compensating for initial formation offset")
-    formation_forward = position_tracker["formation_offset"]["forward"]
-    if formation_forward > 0:
-        safe_command(swarm, "move_back", formation_forward,
-                     description="Compensate initial forward movement")
+        print(f"🏠 Swarm rotation needed: {swarm_rotation_needed} degrees")
+
+        # Break into smaller rotation chunks
+        rotation_chunks = []
+        remaining_rotation = abs(swarm_rotation_needed)
+        direction = "rotate_clockwise" if swarm_rotation_needed > 0 else "rotate_counter_clockwise"
+
+        while remaining_rotation > 0:
+            chunk = min(remaining_rotation, 90)  # Max 90 degrees per chunk
+            rotation_chunks.append(chunk)
+            remaining_rotation -= chunk
+
+        for i, chunk in enumerate(rotation_chunks):
+            safe_command(swarm, direction, chunk,
+                        description=f"Orientation reset {i+1}/{len(rotation_chunks)}: {chunk}°")
+            track_movement(direction, chunk, f"Orientation reset {i+1}")
+            time.sleep(0.8)
+
+    # Step 4: Return swarm to origin position
+    sync_point("Returning swarm to origin position")
+
+    # Calculate movements needed to return swarm to origin
+    swarm_return_x = -swarm_pos["x"]
+    swarm_return_y = -swarm_pos["y"]
+    swarm_return_z = -swarm_pos["z"]
+
+    print(f"🏠 Swarm return needed: x={swarm_return_x}, y={swarm_return_y}, z={swarm_return_z}")
+
+    # Return X position
+    if abs(swarm_return_x) > 10:
+        if swarm_return_x > 0:
+            safe_command(swarm, "move_right", min(abs(swarm_return_x), 100),
+                        description=f"Swarm return X: {swarm_return_x}")
+            track_movement("move_right", min(abs(swarm_return_x), 100), "Swarm return X")
+        else:
+            safe_command(swarm, "move_left", min(abs(swarm_return_x), 100),
+                        description=f"Swarm return X: {swarm_return_x}")
+            track_movement("move_left", min(abs(swarm_return_x), 100), "Swarm return X")
         time.sleep(2)
 
-    # Step 5: Systematic position correction with multiple attempts
-    sync_point("Fine-tuning position - multiple correction attempts")
-
-    # First correction attempt
-    correction_moves = [
-        ("move_back", 30, "Position correction back"),
-        ("move_left", 25, "Position correction left"),
-        ("move_forward", 25, "Position correction forward"),
-        ("move_right", 20, "Position correction right")
-    ]
-
-    for move_cmd, distance, desc in correction_moves:
-        if safe_command(swarm, move_cmd, distance, description=desc):
-            time.sleep(1.5)
+    # Return Y position
+    if abs(swarm_return_y) > 10:
+        if swarm_return_y > 0:
+            safe_command(swarm, "move_forward", min(abs(swarm_return_y), 100),
+                        description=f"Swarm return Y: {swarm_return_y}")
+            track_movement("move_forward", min(abs(swarm_return_y), 100), "Swarm return Y")
         else:
-            print(f"⚠️ Skipping {desc} - likely at boundary")
-
-    # Step 6: Final height adjustment to approximate takeoff height
-    sync_point("Adjusting to takeoff height")
-    formation_up = position_tracker["formation_offset"]["up"]
-    # Return to approximate takeoff height
-    target_down_distance = formation_up + 20  # A bit lower for safety
-    if safe_command(swarm, "move_down", target_down_distance,
-                    description="Return to takeoff height"):
+            safe_command(swarm, "move_back", min(abs(swarm_return_y), 100),
+                        description=f"Swarm return Y: {swarm_return_y}")
+            track_movement("move_back", min(abs(swarm_return_y), 100), "Swarm return Y")
         time.sleep(2)
-        print("🏠 Drones returned to approximate takeoff height")
-    else:
-        # Try a smaller adjustment
-        if safe_command(swarm, "move_down", 40,
-                        description="Partial height adjustment"):
-            time.sleep(2)
-            print("🏠 Partial height adjustment completed")
+
+    # Return Z position (height) - be more conservative with height
+    if abs(swarm_return_z) > 20:  # Only adjust if significantly off
+        target_adjustment = min(abs(swarm_return_z), 80)  # Limit height adjustments
+        if swarm_return_z > 0:
+            safe_command(swarm, "move_up", target_adjustment,
+                        description=f"Swarm return Z: {swarm_return_z}")
+            track_movement("move_up", target_adjustment, "Swarm return Z")
         else:
-            print("🏠 Maintaining current height for safety")
+            safe_command(swarm, "move_down", target_adjustment,
+                        description=f"Swarm return Z: {swarm_return_z}")
+            track_movement("move_down", target_adjustment, "Swarm return Z")
+        time.sleep(2)
 
-    # Step 7: Final positioning verification with small adjustments
-    sync_point("Final position verification")
-    final_adjustments = [
-        ("move_back", 20, "Final back adjustment"),
-        ("move_forward", 20, "Final forward adjustment"),
-    ]
-
-    for move_cmd, distance, desc in final_adjustments:
-        if safe_command(swarm, move_cmd, distance, description=desc):
-            time.sleep(1)
+    # Final position check
+    final_swarm_pos = position_tracker["swarm_position"]
+    print(f"🏠 Final estimated position: x={final_swarm_pos['x']}, y={final_swarm_pos['y']}, z={final_swarm_pos['z']}, rot={final_swarm_pos['rotation']}")
 
     print("🏠 Return to initial position sequence completed!")
-    print("🏠 Drones should now be close to their starting location")
+    print("🏠 Drones should now be very close to their takeoff location")
 
 
 def safe_takeoff(swarm_instance, timeout=10):
@@ -784,8 +900,10 @@ def main():
         # Much smaller spread distance for 2M x 2M boundary
         safe_command(swarm.tellos[0], "move_left", 25,
                      description="Drone 1 spread left")
+        track_movement("move_left", 25, "Drone 1 spread left", "drone1")
         safe_command(swarm.tellos[1], "move_right", 25,
                      description="Drone 2 spread right")
+        track_movement("move_right", 25, "Drone 2 spread right", "drone2")
         time.sleep(3)
 
         debug_print("Starting independent dance sequences")
@@ -797,8 +915,10 @@ def main():
         sync_point("Returning to center formation", wait_time=3)
         safe_command(swarm.tellos[0], "move_right", 25,
                      description="Drone 1 return")
+        track_movement("move_right", 25, "Drone 1 return to center", "drone1")
         safe_command(swarm.tellos[1], "move_left", 25,
                      description="Drone 2 return")
+        track_movement("move_left", 25, "Drone 2 return to center", "drone2")
         time.sleep(3)
 
         debug_print("Starting flip sequence")
@@ -937,20 +1057,70 @@ def reset_position_tracking():
         "initial_height": 0,
         "movements": [],
         "spread_distance": 25,  # Reduced for 2M x 2M boundary
-        "formation_offset": {"forward": 20, "up": 40}  # Reduced movements
+        "formation_offset": {"forward": 20, "up": 40},  # Reduced movements
+        "drone_positions": {
+            "drone1": {"x": 0, "y": 0, "z": 0, "rotation": 0},
+            "drone2": {"x": 0, "y": 0, "z": 0, "rotation": 0}
+        },
+        "swarm_position": {"x": 0, "y": 0, "z": 0, "rotation": 0}
     }
     debug_print("Position tracking reset to initial state")
 
 
-def track_movement(movement_type, distance, description=""):
+def track_movement(movement_type, distance, description="", drone_id=None):
     """Track a movement for potential compensation later"""
     global position_tracker
+
+    # Track movement in history
     position_tracker["movements"].append({
         "type": movement_type,
         "distance": distance,
-        "description": description
+        "description": description,
+        "drone_id": drone_id
     })
-    debug_print(f"Tracked: {movement_type} {distance}cm - {description}")
+
+    # Update position estimates
+    if drone_id is None:  # Swarm movement
+        pos = position_tracker["swarm_position"]
+        if movement_type == "move_forward":
+            pos["y"] += distance
+        elif movement_type == "move_back":
+            pos["y"] -= distance
+        elif movement_type == "move_left":
+            pos["x"] -= distance
+        elif movement_type == "move_right":
+            pos["x"] += distance
+        elif movement_type == "move_up":
+            pos["z"] += distance
+        elif movement_type == "move_down":
+            pos["z"] -= distance
+        elif movement_type in ["rotate_clockwise", "rotate_counter_clockwise"]:
+            if movement_type == "rotate_clockwise":
+                pos["rotation"] = (pos["rotation"] + distance) % 360
+            else:
+                pos["rotation"] = (pos["rotation"] - distance) % 360
+    else:  # Individual drone movement
+        pos = position_tracker["drone_positions"][drone_id]
+        if movement_type == "move_forward":
+            pos["y"] += distance
+        elif movement_type == "move_back":
+            pos["y"] -= distance
+        elif movement_type == "move_left":
+            pos["x"] -= distance
+        elif movement_type == "move_right":
+            pos["x"] += distance
+        elif movement_type == "move_up":
+            pos["z"] += distance
+        elif movement_type == "move_down":
+            pos["z"] -= distance
+        elif movement_type in ["rotate_clockwise", "rotate_counter_clockwise"]:
+            if movement_type == "rotate_clockwise":
+                pos["rotation"] = (pos["rotation"] + distance) % 360
+            else:
+                pos["rotation"] = (pos["rotation"] - distance) % 360
+
+    debug_print(f"Tracked: {movement_type} {distance}cm - {description} "
+                f"(drone: {drone_id})")
 
 
 def enhanced_safe_landing_sequence():
