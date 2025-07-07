@@ -1,17 +1,20 @@
-# 🚁 Drone Controller - Quick Setup Guide
+# 🚁 Drone Controller - Setup Guide
 
-This guide will help you quickly set up the drone controller project on Windows.
+This guide helps you set up the Drone Controller project on different operating systems.
 
-## 📋 Prerequisites
+## 📋 Quick Navigation
 
-- **Python 3.11 or higher** - [Download from python.org](https://www.python.org/downloads/)
-- **uv package manager** - Will be installed automatically by setup scripts
-- **Git** (optional) - For cloning the repository
-- **Administrator privileges** (may be required for some installations)
+- **🪟 [Windows Users](WINDOWS_SETUP.md)** - Comprehensive Windows setup guide
+- **🐧 Linux/macOS Users** - Continue with this guide
+- **🔄 Mixed Environment (WSL + Windows)** - See both guides
 
 ## 🚀 Quick Setup Options
 
-### Option 1: PowerShell Setup (Recommended)
+### Windows Users
+
+**📖 For detailed Windows instructions, see [WINDOWS_SETUP.md](WINDOWS_SETUP.md)**
+
+#### Option 1: PowerShell Setup (Recommended)
 
 Open PowerShell as Administrator and run:
 
@@ -29,7 +32,7 @@ Open PowerShell as Administrator and run:
 .\setup.ps1 -Dev -Force
 ```
 
-### Option 2: CMD/Batch Setup (Simple)
+#### Option 2: CMD/Batch Setup (Simple)
 
 Open Command Prompt as Administrator and run:
 
@@ -37,20 +40,20 @@ Open Command Prompt as Administrator and run:
 setup.bat
 ```
 
-### Option 3: Complete Development Environment
+### Linux/macOS Users
 
-For a full development setup with all tools:
+For Linux and macOS, ensure you have Python 3.11+ and pip installed. Then, run:
 
-```powershell
-.\setup-dev.ps1
+```bash
+# For production use
+python3 -m pip install -r requirements.txt
+
+# For development
+python3 -m pip install -r requirements-dev.txt
+
+# For development with visualization tools
+python3 -m pip install -r requirements-visualization.txt
 ```
-
-This includes:
-- All dependencies
-- Development tools (pytest, black, flake8, mypy)
-- Pre-commit hooks
-- VS Code extensions
-- Development scripts
 
 ## 📁 What Gets Installed
 

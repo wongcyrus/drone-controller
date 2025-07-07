@@ -30,18 +30,56 @@ A simple but powerful multi-drone control system for DJI Tello drones with swarm
 - **Python 3.11 or higher**
 - **uv package manager** (installed automatically by setup script)
 
-### 1. Setup
+### Windows Setup
+
+#### Option 1: PowerShell Setup (Recommended)
+
+Open PowerShell as Administrator and run:
+
+```powershell
+# For production use
+.\setup.ps1
+
+# For development
+.\setup.ps1 -Dev
+
+# For development with visualization tools
+.\setup.ps1 -Dev -Visualization
+
+# Force reinstall all dependencies
+.\setup.ps1 -Dev -Force
+```
+
+#### Option 2: Batch Setup (Simple)
+
+Open Command Prompt as Administrator and run:
+
+```cmd
+setup.bat
+```
+
+### Linux/macOS Setup
 
 ```bash
-# Windows
-.\setup.bat
-
-# Or manual setup
+# Manual setup
 uv sync
 ```
 
 ### 2. Test with Mock Drone
-Change the code in main.py with WSL IP.
+
+#### Windows (Native)
+
+```powershell
+# Terminal 1: Start mock drone
+cd webapp
+.\start_simulator.ps1
+
+# Terminal 2: Run swarm controller
+python main.py
+```
+
+#### Windows (WSL) or Linux
+
 ```bash
 # Terminal 1 in WSL: Start mock drone
 python webapp/mock_drone.py --ip <WSL IP> --host 0.0.0.0
@@ -59,13 +97,34 @@ python main.py
 
 ## 📦 Installation
 
-### Option 1: Automated Setup (Windows)
+### Windows Installation
 
-```bash
-.\setup.bat
+#### Option 1: PowerShell Setup (Recommended)
+
+Open PowerShell as Administrator and run:
+
+```powershell
+# For production use
+.\setup.ps1
+
+# For development
+.\setup.ps1 -Dev
+
+# For development with visualization tools
+.\setup.ps1 -Dev -Visualization
 ```
 
-### Option 2: Manual Installation
+#### Option 2: Batch Setup (Simple)
+
+Open Command Prompt as Administrator and run:
+
+```cmd
+setup.bat
+```
+
+### Linux/macOS Installation
+
+#### Option 1: Manual Installation
 
 ```bash
 # Install uv package manager (if not installed)
@@ -126,6 +185,28 @@ The project includes a sophisticated mock drone simulator for testing without re
 
 ### Starting Mock Drones
 
+#### Windows (Native)
+
+```powershell
+# Simple start with default settings
+cd webapp
+.\start_simulator.ps1
+
+# Custom configuration
+.\start_simulator.ps1 -WebPort 8080 -WebAppPort 8767 -Multiple 3
+
+# Or using batch file
+.\start_simulator.bat --web-port 8080 --webapp-port 8767 --multiple 3
+
+# Check available ports first
+.\configure_ports.ps1
+
+# Get local IP for network access
+.\get_local_ip.ps1
+```
+
+#### Windows (WSL) or Linux
+
 ```bash
 # Single mock drone (default: 127.0.0.1:8889)
 python webapp/mock_drone.py
@@ -133,7 +214,7 @@ python webapp/mock_drone.py
 # Custom IP
 python webapp/mock_drone.py --ip 172.28.3.205 --host 0.0.0.0
 
-# Multiple drones on sequential IPs (Linux only)
+# Multiple drones on sequential IPs
 python webapp/mock_drone.py --multiple 3 --ip 127.0.0.1
 
 # Custom port
@@ -281,7 +362,7 @@ python webapp/mock_drone.py --ip 127.0.0.1
 # Look for these log patterns:
 # 📥 RAW UDP: Shows all incoming packets
 # ✅ PROCESSING: Commands being handled
-# 📤 RESPONSE: Responses sent back
+# 📤 RESPONSE: Responses being sent back
 # ⛔ IGNORED: Filtered out packets (normal for loops)
 ```
 

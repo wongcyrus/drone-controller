@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tello Drone Swarm IoT Message Schema",
+  "description": "AWS IoT JSON specification for controlling multiple Tello drones",
+  "type": "object",
+  "properties": {
+    "message_id": {
+      "type": "string",
+      "description": "Unique identifier for this message",
+      "pattern": "^[a-fA-F0-9-]{36}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when message was created"
+    },
+    "swarm_id": {
+      "type": "string",
+      "description": "Identifier for the drone swarm",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "command_type": {
+      "type": "string",
+      "enum": [
+        "action",
+        "status_request",
+        "emergency_stop",
+        "formation",
+        "choreography",
+        "stream_control"
+      ],
+      "description": "Type of command being sent"
+    },
+    "target_drones": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["all"],
+          "description": "Target all drones in the swarm"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99
+          },
+          "description": "Array of specific drone IDs to target",
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "takeoff",
+            "land",
+            "emergency",
+            "move_up",
+            "move_down",
+            "move_left",
+            "move_right",
+            "move_forward",
+            "move_back",
+            "rotate_clockwise",
+            "rotate_counter_clockwise",
+            "flip_left",
+            "flip_right",
+            "flip_forward",
+            "flip_back",
+            "set_speed_slow",
+            "set_speed_medium",
+            "set_speed_fast",
+            "hover",
+            "formation_line",
+            "formation_circle",
+            "formation_diamond",
+            "dance_sequence_1",
+            "dance_sequence_2",
+            "synchronized_flip",
+            "stream_on",
+            "stream_off"
+          ],
+          "description": "Name of the action to execute"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Optional parameters for the action",
+          "properties": {
+            "distance": {
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 500,
+              "description": "Distance in centimeters for movement commands"
+            },
+            "angle": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 360,
+              "description": "Rotation angle in degrees"
+            },
+            "speed": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 100,
+              "description": "Speed setting (10-100)"
+            },
+            "formation_spacing": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 300,
+              "description": "Spacing between drones in formation (cm)"
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 500,
+              "description": "Target height in centimeters"
+            }
+          },
+          "additionalProperties": false
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "normal", "high", "emergency"],
+          "default": "normal",
+          "description": "Priority level of the action"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 300,
+          "description": "Action timeout in seconds"
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "formation": {
+      "type": "object",
+      "description": "Formation-specific configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["line", "circle", "diamond", "square", "triangle", "custom"],
+          "description": "Type of formation"
+        },
+        "spacing": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 500,
+          "description": "Distance between drones in centimeters"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 300,
+          "description": "Formation height above ground in centimeters"
+        },
+        "orientation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 360,
+          "description": "Formation orientation in degrees"
+        },
+        "custom_positions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "drone_id": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "x": {"type": "number"},
+              "y": {"type": "number"},
+              "z": {"type": "number"}
+            },
+            "required": ["drone_id", "x", "y", "z"]
+          },
+          "description": "Custom positions for each drone (only for custom formation type)"
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "choreography": {
+      "type": "object",
+      "description": "Choreographed sequence configuration",
+      "properties": {
+        "sequence_name": {
+          "type": "string",
+          "description": "Name of the choreographed sequence"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step_number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "duration": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 60
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "drone_id": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "parameters": {
+                      "type": "object"
+                    }
+                  },
+                  "required": ["drone_id", "action"]
+                }
+              }
+            },
+            "required": ["step_number", "duration", "actions"]
+          },
+          "description": "Sequence of choreographed steps"
+        },
+        "repeat_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 1,
+          "description": "Number of times to repeat the sequence"
+        }
+      },
+      "required": ["sequence_name", "steps"],
+      "additionalProperties": false
+    },
+    "safety": {
+      "type": "object",
+      "description": "Safety parameters and constraints",
+      "properties": {
+        "max_altitude": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 500,
+          "default": 300,
+          "description": "Maximum allowed altitude in centimeters"
+        },
+        "min_battery_level": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 50,
+          "default": 20,
+          "description": "Minimum battery level before auto-land (%)"
+        },
+        "collision_avoidance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable collision avoidance between drones"
+        },
+        "return_to_home_on_low_battery": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically return to home position when battery is low"
+        },
+        "emergency_land_on_signal_loss": {
+          "type": "boolean",
+          "default": true,
+          "description": "Emergency land if signal is lost"
+        }
+      },
+      "additionalProperties": false
+    },
+    "response_topic": {
+      "type": "string",
+      "description": "MQTT topic where response should be published",
+      "pattern": "^[a-zA-Z0-9/_-]+$"
+    }
+  },
+  "required": ["message_id", "timestamp", "swarm_id", "command_type"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "command_type": {"const": "action"}
+        }
+      },
+      "then": {
+        "required": ["target_drones", "action"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command_type": {"const": "formation"}
+        }
+      },
+      "then": {
+        "required": ["target_drones", "formation"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command_type": {"const": "choreography"}
+        }
+      },
+      "then": {
+        "required": ["target_drones", "choreography"]
+      }
+    }
+  ]
+}
