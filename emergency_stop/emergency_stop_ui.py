@@ -11,6 +11,9 @@ import signal
 import sys
 import subprocess
 import time
+import os  # Added for process ID
+from djitellopy import Tello
+from djitellopy import TelloSwarm
 
 
 class EmergencyStopGUI:
@@ -102,21 +105,7 @@ class EmergencyStopGUI:
     def emergency_stop(self):
         """Execute emergency stop procedure"""
         if self.emergency_triggered:
-            messagebox.showinfo(
-                "Already Triggered",
-                "Emergency stop already in progress!"
-            )
-            return
-
-        # Confirm action
-        result = messagebox.askyesno(
-            "Confirm Emergency Stop",
-            "Are you sure you want to trigger emergency stop?\n\n"
-            "This will immediately stop all drone operations!",
-            icon='warning'
-        )
-
-        if not result:
+            print("Emergency stop already in progress!")
             return
 
         self.emergency_triggered = True
@@ -139,13 +128,13 @@ class EmergencyStopGUI:
             print("🚨 EMERGENCY STOP TRIGGERED FROM GUI!")
 
             # Step 1: Send Ctrl+C to any running Python processes
-            self.send_interrupt_signals()
+            # self.send_interrupt_signals()
 
             # Step 2: Direct drone emergency commands
             self.send_drone_emergency_commands()
 
             # Step 3: Kill processes as backup
-            self.kill_drone_processes()
+            # self.kill_drone_processes()
 
             # Update UI on main thread
             self.root.after(0, self.emergency_stop_complete)
@@ -179,43 +168,31 @@ class EmergencyStopGUI:
 
         try:
             # Try to connect and send emergency command directly
-            from djitellopy import Tello
 
-            # Try common drone IPs
-            drone_ips = [
-                "172.28.3.205",  # WSL IP from main.py
-                "192.168.10.1",  # Common Tello IP
-                "192.168.4.1"    # Alternative Tello IP
-            ]
 
-            for ip in drone_ips:
+
+
+            try:
+
+                drone1 = Tello(host="192.168.137.21")
+                drone2 = Tello(host="192.168.137.22")
+
+                # Create swarm from individual drones
+                swarm = TelloSwarm([drone1, drone2])
+                swarm.connect()
+                swarm.emergency()
+                print("Emergency command sent to all drones in swarm.")
+
+                # Also try land command as backup
                 try:
-                    print(f"Attempting emergency stop for drone at {ip}...")
+                    swarm.land()
+                    print("Land command sent to all drones in swarm.")
+                except Exception as land_err:
+                    print(f"Land command failed for swarm: {land_err}")
 
-                    # Create drone instance with short timeout
-                    drone = Tello(host=ip)
-                    drone.RESPONSE_TIMEOUT = 3
-
-                    # Try to connect briefly
-                    drone.connect()
-
-                    # Send emergency command
-                    drone.emergency()
-                    print(f"Emergency command sent to {ip}")
-
-                    # Also try land command as backup
-                    try:
-                        drone.land()
-                        print(f"Land command sent to {ip}")
-                    except:
-                        pass
-
-                    # End connection
-                    drone.end()
-
-                except Exception as e:
-                    print(f"Could not send emergency to {ip}: {e}")
-                    continue
+                swarm.end()
+            except Exception as e:
+                print(f"Could not send emergency to swarm: {e}")
 
         except ImportError:
             print("djitellopy not available, skipping direct drone commands")
@@ -225,22 +202,24 @@ class EmergencyStopGUI:
     def kill_drone_processes(self):
         """Kill drone-related processes as backup"""
         print("Killing drone processes...")
+        current_pid = os.getpid()
+        print(f"Current process ID: {current_pid} (will be excluded)")
 
         try:
             if sys.platform == "win32":
                 # Windows commands
                 commands = [
-                    ['taskkill', '/F', '/IM', 'python.exe'],
+                    ['taskkill', '/F', '/FI', f'PID ne {current_pid}', '/IM', 'python.exe'],
                     ['taskkill', '/F', '/FI', 'WINDOWTITLE eq *main.py*'],
                     ['taskkill', '/F', '/FI', 'WINDOWTITLE eq *drone*']
                 ]
             else:
                 # Unix commands
                 commands = [
-                    ['pkill', '-f', 'main.py'],
-                    ['pkill', '-f', 'drone'],
-                    ['pkill', '-f', 'tello'],
-                    ['pkill', '-f', 'djitellopy']
+                    ['pkill', '-f', f'(?!^{current_pid}$)main.py'],
+                    ['pkill', '-f', f'(?!^{current_pid}$)drone'],
+                    ['pkill', '-f', f'(?!^{current_pid}$)tello'],
+                    ['pkill', '-f', f'(?!^{current_pid}$)djitellopy']
                 ]
 
             for cmd in commands:
@@ -265,15 +244,10 @@ class EmergencyStopGUI:
             bg='#27ae60',
             state='disabled'
         )
-
-        messagebox.showinfo(
-            "Emergency Stop Complete",
-            "Emergency stop procedure completed!\n\n"
-            "• Interrupt signals sent\n"
-            "• Emergency commands sent to drones\n"
-            "• Processes terminated\n\n"
-            "Check drone status manually if needed."
-        )
+        print("Emergency stop procedure completed!")
+        print("• Interrupt signals sent")
+        print("• Emergency commands sent to drones")
+        print("• Processes terminated")
 
         # Re-enable button after 5 seconds
         self.root.after(5000, self.reset_button)
@@ -285,13 +259,9 @@ class EmergencyStopGUI:
             bg='#e74c3c',
             state='normal'
         )
-
-        messagebox.showerror(
-            "Emergency Stop Error",
-            f"Error during emergency stop:\n{error_msg}\n\n"
-            "Some operations may have failed.\n"
-            "Check manually if needed."
-        )
+        print(f"Error during emergency stop: {error_msg}")
+        print("Some operations may have failed.")
+        print("Check manually if needed.")
 
         self.emergency_triggered = False
 

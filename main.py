@@ -273,9 +273,12 @@ def main():
     try:
         # Create individual Tello instances for mock simulators
         # Drone-1 on localhost:8889, Drone-2 on localhost:8890
-        wsl_ip = "172.28.3.205"
-        drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-        drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+        # wsl_ip = "172.28.3.205"
+        # drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
+        # drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+
+        drone1 = Tello(host="192.168.137.21")
+        drone2 = Tello(host="192.168.137.22")
 
         # Create swarm from individual drones
         swarm = TelloSwarm([drone1, drone2])
@@ -284,6 +287,10 @@ def main():
 
         # Connect with timeout to prevent hanging
         success, error = connect_with_timeout(swarm, timeout=15)
+
+        if success:
+            print("\nChecking battery levels...")
+            check_battery_levels(swarm)
 
         if not success:
             print(f"Failed to connect to drone swarm: {error}")
@@ -297,7 +304,7 @@ def main():
         print("Successfully connected to swarm!")
 
         print("Taking off...")
-        takeoff_success, takeoff_error = safe_takeoff(swarm, timeout=15)
+        takeoff_success, takeoff_error = safe_takeoff(swarm, timeout=10)
 
         if not takeoff_success:
             print(f"❌ Takeoff failed: {takeoff_error}")
@@ -312,14 +319,14 @@ def main():
 
         # Basic movement demonstration using helper
         basic_movements = [
-            {"command": "move_up", "args": [25], "description": "Moving up"},
-            {"command": "move_down", "args": [15], "description": "Moving down"},
-            {"command": "move_forward", "args": [25], "description": "Moving forward"},
-            {"command": "move_back", "args": [25], "description": "Moving back"},
-            {"command": "move_left", "args": [25], "description": "Moving left"},
-            {"command": "move_right", "args": [25], "description": "Moving right"},
-            {"command": "rotate_clockwise", "args": [45], "description": "Rotating clockwise"},
-            {"command": "rotate_counter_clockwise", "args": [45], "description": "Rotating counter-clockwise"}
+            {"command": "move_up", "args": [50], "description": "Moving up"},
+            # {"command": "move_down", "args": [15], "description": "Moving down"},
+            {"command": "move_forward", "args": [150], "description": "Moving forward"},
+            {"command": "move_back", "args": [150], "description": "Moving back"},
+            {"command": "move_left", "args": [150], "description": "Moving left"},
+            {"command": "move_right", "args": [150], "description": "Moving right"},
+            {"command": "rotate_clockwise", "args": [90], "description": "Rotating clockwise"},
+            {"command": "rotate_counter_clockwise", "args": [90], "description": "Rotating counter-clockwise"}
         ]
 
         execute_movement_pattern(swarm, "DRONE MOVEMENT DEMO", basic_movements)
@@ -337,10 +344,10 @@ def main():
 
             # Perform flips in all directions with safe commands
             flip_movements = [
-                {"command": "flip_forward", "description": "Flip forward", "wait_time": 3},
-                {"command": "flip_back", "description": "Flip back", "wait_time": 3},
-                {"command": "flip_left", "description": "Flip left", "wait_time": 3},
-                {"command": "flip_right", "description": "Flip right", "wait_time": 3}
+                {"command": "flip_forward", "description": "Flip forward", "wait_time": 5},
+                {"command": "flip_back", "description": "Flip back", "wait_time": 5},
+                {"command": "flip_left", "description": "Flip left", "wait_time": 5},
+                {"command": "flip_right", "description": "Flip right", "wait_time": 5}
             ]
 
             for movement in flip_movements:
@@ -353,15 +360,15 @@ def main():
 
             print("All flips completed!")
 
-            # Additional flip for demonstration
-            print("Ensuring adequate height for extra flip...")
-            safe_command(swarm, "move_up", 30, description="Extra height")
-            time.sleep(2)
+        #     # Additional flip for demonstration
+        #     print("Ensuring adequate height for extra flip...")
+        #     safe_command(swarm, "move_up", 30, description="Extra height")
+        #     time.sleep(2)
 
-            # Perform the flip with safe command
-            safe_command(swarm, "flip_forward",
-                        description="Extra flip forward")
-            time.sleep(5)  # Increased wait time for flip completion
+        #     # Perform the flip with safe command
+        #     safe_command(swarm, "flip_forward",
+        #                 description="Extra flip forward")
+        #     time.sleep(5)  # Increased wait time for flip completion
 
         except Exception as e:  # pylint: disable=broad-except
             print(f"Flip command failed: {e}")
@@ -372,21 +379,21 @@ def main():
             print("- Recent command interference")
             print("Continuing with remaining commands...")
 
-        # Square pattern using helper
-        print("Moving in a square pattern...")
-        square_movements = []
-        for i in range(4):
-            square_movements.extend([
-                {"command": "move_forward", "args": [60],
-                 "description": f"Square side {i+1}", "wait_time": 1.5},
-                {"command": "rotate_clockwise", "args": [90],
-                 "description": f"Square turn {i+1}", "wait_time": 1.5}
-            ])
+        # # Square pattern using helper
+        # print("Moving in a square pattern...")
+        # square_movements = []
+        # for i in range(4):
+        #     square_movements.extend([
+        #         {"command": "move_forward", "args": [60],
+        #          "description": f"Square side {i+1}", "wait_time": 1.5},
+        #         {"command": "rotate_clockwise", "args": [90],
+        #          "description": f"Square turn {i+1}", "wait_time": 1.5}
+        #     ])
 
-        execute_movement_pattern(swarm, "SQUARE PATTERN", square_movements)
+        # execute_movement_pattern(swarm, "SQUARE PATTERN", square_movements)
 
-        print("Final hover...")
-        time.sleep(2)
+        # print("Final hover...")
+        # time.sleep(2)
 
         print("Landing...")
         landing_success, landing_error = safe_landing(swarm, timeout=15)
