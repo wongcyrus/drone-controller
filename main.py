@@ -6,51 +6,117 @@ import time
 import functools
 import os
 
+# Helper functions to eliminate duplicate code patterns
+
+
+def execute_with_timeout_and_progress(operation_func, progress_message,
+                                      timeout=10,
+                                      success_message="Operation successful!",
+                                      timeout_message="Operation timed out",
+                                      error_prefix="Operation failed"):
+    """Generic helper for executing operations with timeout and progress"""
+    operation_result = {"success": False, "error": None, "completed": False}
+
+    def operation_thread():
+        try:
+            operation_func()
+            operation_result["success"] = True
+        except Exception as e:  # pylint: disable=broad-except
+            operation_result["error"] = e
+        finally:
+            operation_result["completed"] = True
+
+    def show_progress():
+        for i in range(timeout):
+            if operation_result["completed"]:
+                break
+            print(f"{progress_message} ({i+1}/{timeout}s)", end="\r")
+            time.sleep(1)
+
+    thread = threading.Thread(target=operation_thread)
+    progress_thread = threading.Thread(target=show_progress)
+
+    thread.daemon = True
+    progress_thread.daemon = True
+
+    print(f"Initiating {progress_message.lower()}...")
+    thread.start()
+    progress_thread.start()
+
+    thread.join(timeout)
+
+    # Stop progress thread
+    operation_result["completed"] = True
+    progress_thread.join(2)
+
+    print("\n", end="")  # Clear progress line
+
+    if thread.is_alive():
+        print(f"⚠️ {timeout_message} after {timeout} seconds")
+        operation_result["completed"] = True
+        return False, f"{timeout_message.lower()}"
+
+    if operation_result["success"]:
+        print(f"✅ {success_message}")
+        return True, None
+    else:
+        error_msg = operation_result["error"] or \
+            f"Unknown {error_prefix.lower()} error"
+        print(f"❌ {error_prefix}: {error_msg}")
+        return False, operation_result["error"]
+
+
+def check_battery_levels(swarm_instance):
+    """Helper to check battery levels for all drones in swarm"""
+    battery_info = []
+    for i, tello in enumerate(swarm_instance.tellos):
+        try:
+            battery = tello.get_battery()
+            battery_info.append({"drone": i+1, "battery": battery})
+            print(f"Drone {i+1} battery: {battery}%")
+            if battery < 50:
+                print(f"Warning: Drone {i+1} battery is low ({battery}%).")
+                print("Some operations may not work with low battery.")
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"Could not get battery level for drone {i+1}: {e}")
+            battery_info.append({"drone": i+1, "battery": None,
+                                 "error": str(e)})
+    return battery_info
+
+
+def execute_movement_pattern(swarm_instance, pattern_name, movements):
+    """Helper to execute a series of movements with consistent error handling"""
+    print(f"=== {pattern_name.upper()} ===")
+
+    for movement in movements:
+        command = movement["command"]
+        args = movement.get("args", [])
+        description = movement["description"]
+        wait_time = movement.get("wait_time", 2)
+
+        if safe_command(swarm_instance, command, *args, description=description):
+            time.sleep(wait_time)
+        else:
+            print(f"⚠️ Skipping {description} due to error")
+            time.sleep(1)
+
 # Global variable to hold the swarm instance
 swarm = None
 
 
 def connect_with_timeout(swarm_instance, timeout=10):
     """Connect to swarm with timeout"""
-    connection_result = {"success": False, "error": None}
+    def connect_operation():
+        swarm_instance.connect()
 
-    def connect_thread():
-        try:
-            swarm_instance.connect()
-            connection_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            connection_result["error"] = e
-
-    # Show progress while connecting
-    def show_progress():
-        for i in range(timeout):
-            if connection_result["success"] or connection_result["error"]:
-                break
-            print(f"Connecting... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=connect_thread)
-    progress_thread = threading.Thread(target=show_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    thread.start()
-    progress_thread.start()
-
-    thread.join(timeout)
-
-    if thread.is_alive():
-        print(f"\nConnection timed out after {timeout} seconds")
-        return False, "Connection timeout"
-
-    progress_thread.join(1)  # Wait briefly for progress thread to finish
-    print("\n", end="")  # Clear the progress line
-
-    if connection_result["success"]:
-        return True, None
-    else:
-        return False, connection_result["error"]
+    return execute_with_timeout_and_progress(
+        connect_operation,
+        "Connecting",
+        timeout,
+        "Connection successful!",
+        "Connection timed out",
+        "Connection failed"
+    )
 
 
 def signal_handler(sig, frame):  # pylint: disable=unused-argument
@@ -72,106 +138,32 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def safe_takeoff(swarm_instance, timeout=10):
     """Takeoff with timeout to prevent hanging"""
-    takeoff_result = {"success": False, "error": None, "completed": False}
+    def takeoff_operation():
+        swarm_instance.takeoff()
 
-    def takeoff_thread():
-        try:
-            swarm_instance.takeoff()
-            takeoff_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            takeoff_result["error"] = e
-        finally:
-            takeoff_result["completed"] = True
-
-    def show_takeoff_progress():
-        for i in range(timeout):
-            if takeoff_result["completed"]:
-                break
-            print(f"Taking off... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=takeoff_thread)
-    progress_thread = threading.Thread(target=show_takeoff_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    print("Initiating takeoff...")
-    thread.start()
-    progress_thread.start()
-
-    thread.join(timeout)
-
-    # Stop progress thread
-    takeoff_result["completed"] = True
-    progress_thread.join(2)
-
-    print("\n", end="")  # Clear progress line
-
-    if thread.is_alive():
-        print(f"⚠️ Takeoff timed out after {timeout} seconds")
-        takeoff_result["completed"] = True
-        return False, "Takeoff timeout"
-
-    if takeoff_result["success"]:
-        print("✅ Takeoff successful!")
-        return True, None
-    else:
-        error_msg = takeoff_result["error"] or "Unknown takeoff error"
-        print(f"❌ Takeoff failed: {error_msg}")
-        return False, takeoff_result["error"]
+    return execute_with_timeout_and_progress(
+        takeoff_operation,
+        "Taking off",
+        timeout,
+        "Takeoff successful!",
+        "Takeoff timed out",
+        "Takeoff failed"
+    )
 
 
 def safe_landing(swarm_instance, timeout=10):
     """Landing with timeout to prevent hanging"""
-    landing_result = {"success": False, "error": None, "completed": False}
+    def landing_operation():
+        swarm_instance.land()
 
-    def landing_thread():
-        try:
-            swarm_instance.land()
-            landing_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            landing_result["error"] = e
-        finally:
-            landing_result["completed"] = True
-
-    def show_landing_progress():
-        for i in range(timeout):
-            if landing_result["completed"]:
-                break
-            print(f"Landing... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=landing_thread)
-    progress_thread = threading.Thread(target=show_landing_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    print("Initiating landing...")
-    thread.start()
-    progress_thread.start()
-
-    thread.join(timeout)
-
-    # Stop progress thread
-    landing_result["completed"] = True
-    progress_thread.join(2)
-
-    print("\n", end="")  # Clear progress line
-
-    if thread.is_alive():
-        print(f"⚠️ Landing timed out after {timeout} seconds")
-        landing_result["completed"] = True
-        return False, "Landing timeout"
-
-    if landing_result["success"]:
-        print("✅ Landing successful!")
-        return True, None
-    else:
-        error_msg = landing_result["error"] or "Unknown landing error"
-        print(f"❌ Landing failed: {error_msg}")
-        return False, landing_result["error"]
+    return execute_with_timeout_and_progress(
+        landing_operation,
+        "Landing",
+        timeout,
+        "Landing successful!",
+        "Landing timed out",
+        "Landing failed"
+    )
 
 
 def safe_command(drone_or_swarm, command, *args, description="command",
@@ -318,61 +310,47 @@ def main():
 
         time.sleep(3)
 
-        print("=== DRONE MOVEMENT DEMO ===")
+        # Basic movement demonstration using helper
+        basic_movements = [
+            {"command": "move_up", "args": [25], "description": "Moving up"},
+            {"command": "move_down", "args": [15], "description": "Moving down"},
+            {"command": "move_forward", "args": [25], "description": "Moving forward"},
+            {"command": "move_back", "args": [25], "description": "Moving back"},
+            {"command": "move_left", "args": [25], "description": "Moving left"},
+            {"command": "move_right", "args": [25], "description": "Moving right"},
+            {"command": "rotate_clockwise", "args": [45], "description": "Rotating clockwise"},
+            {"command": "rotate_counter_clockwise", "args": [45], "description": "Rotating counter-clockwise"}
+        ]
 
-        safe_command(swarm, "move_up", 50, description="Moving up")
-        time.sleep(2)
-
-        safe_command(swarm, "move_down", 30, description="Moving down")
-        time.sleep(2)
-
-        safe_command(swarm, "move_forward", 50, description="Moving forward")
-        time.sleep(2)
-
-        safe_command(swarm, "move_back", 50, description="Moving back")
-        time.sleep(2)
-
-        safe_command(swarm, "move_left", 50, description="Moving left")
-        time.sleep(2)
-
-        safe_command(swarm, "move_right", 50, description="Moving right")
-        time.sleep(2)
-
-        safe_command(swarm, "rotate_clockwise", 90,
-                     description="Rotating clockwise")
-        time.sleep(2)
-
-        safe_command(swarm, "rotate_counter_clockwise", 90,
-                     description="Rotating counter-clockwise")
-        time.sleep(2)
+        execute_movement_pattern(swarm, "DRONE MOVEMENT DEMO", basic_movements)
 
         print("Performing flip forward...")
         try:
-            # Check battery level first
-            for i, tello in enumerate(swarm.tellos):
-                try:
-                    battery = tello.get_battery()
-                    print(f"Drone {i+1} battery: {battery}%")
-                    if battery < 50:
-                        print(f"Warning: Drone {i+1} battery is low ({battery}%).")
-                        print("Flips may not work with low battery.")
-                except Exception as e:  # pylint: disable=broad-except
-                    print(f"Could not get battery level for drone {i+1}: {e}")
+            # Check battery level first using helper
+            check_battery_levels(swarm)
 
             # Ensure adequate height for flip (move up if needed)
             print("Ensuring adequate height for flip...")
-            safe_command(swarm, "move_up", 30, description="Extra height for flip")
+            safe_command(swarm, "move_up", 30,
+                        description="Extra height for flip")
             time.sleep(2)
 
             # Perform flips in all directions with safe commands
-            safe_command(swarm, "flip_forward", description="Flip forward")
-            time.sleep(3)
-            safe_command(swarm, "flip_back", description="Flip back")
-            time.sleep(3)
-            safe_command(swarm, "flip_left", description="Flip left")
-            time.sleep(3)
-            safe_command(swarm, "flip_right", description="Flip right")
-            time.sleep(3)
+            flip_movements = [
+                {"command": "flip_forward", "description": "Flip forward", "wait_time": 3},
+                {"command": "flip_back", "description": "Flip back", "wait_time": 3},
+                {"command": "flip_left", "description": "Flip left", "wait_time": 3},
+                {"command": "flip_right", "description": "Flip right", "wait_time": 3}
+            ]
+
+            for movement in flip_movements:
+                if safe_command(swarm, movement["command"],
+                               description=movement["description"]):
+                    time.sleep(movement["wait_time"])
+                else:
+                    print(f"⚠️ Skipping {movement['description']} due to error")
+                    time.sleep(1)
+
             print("All flips completed!")
 
             # Additional flip for demonstration
@@ -381,7 +359,8 @@ def main():
             time.sleep(2)
 
             # Perform the flip with safe command
-            safe_command(swarm, "flip_forward", description="Extra flip forward")
+            safe_command(swarm, "flip_forward",
+                        description="Extra flip forward")
             time.sleep(5)  # Increased wait time for flip completion
 
         except Exception as e:  # pylint: disable=broad-except
@@ -393,15 +372,18 @@ def main():
             print("- Recent command interference")
             print("Continuing with remaining commands...")
 
+        # Square pattern using helper
         print("Moving in a square pattern...")
+        square_movements = []
         for i in range(4):
-            print(f"Square side {i+1}/4...")
-            safe_command(swarm, "move_forward", 60,
-                        description=f"Square side {i+1}")
-            time.sleep(1.5)
-            safe_command(swarm, "rotate_clockwise", 90,
-                        description=f"Square turn {i+1}")
-            time.sleep(1.5)
+            square_movements.extend([
+                {"command": "move_forward", "args": [60],
+                 "description": f"Square side {i+1}", "wait_time": 1.5},
+                {"command": "rotate_clockwise", "args": [90],
+                 "description": f"Square turn {i+1}", "wait_time": 1.5}
+            ])
+
+        execute_movement_pattern(swarm, "SQUARE PATTERN", square_movements)
 
         print("Final hover...")
         time.sleep(2)

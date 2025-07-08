@@ -5,73 +5,34 @@ import threading
 import time
 import functools
 import os
+from typing import Optional
 
 # Global variable to hold the swarm instance
-swarm = None
+swarm: Optional[TelloSwarm] = None
 
-# Position tracking variables to help return to start - Updated for 2M x 2M boundary
+# Position tracking variables - Updated for 2M x 2M boundary
 position_tracker = {
     "initial_height": 0,
     "movements": [],  # Track all movements for potential compensation
     "spread_distance": 25,  # Reduced spread distance for 2M x 2M boundary
-    "formation_offset": {"forward": 20, "up": 40}  # Reduced initial formation moves
+    # Reduced initial formation moves
+    "formation_offset": {"forward": 20, "up": 40}
 }
 
 
 def connect_with_timeout(swarm_instance, timeout=10):
     """Connect to swarm with timeout"""
-    connection_result = {"success": False, "error": None, "completed": False}
+    def connect_operation():
+        swarm_instance.connect()
 
-    def connect_thread():
-        try:
-            swarm_instance.connect()
-            connection_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            connection_result["error"] = e
-        finally:
-            connection_result["completed"] = True
-
-    # Show progress while connecting
-    def show_progress():
-        for i in range(timeout):
-            if connection_result["completed"]:
-                break
-            print(f"Connecting... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=connect_thread)
-    progress_thread = threading.Thread(target=show_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    print("Starting connection attempt...")
-    thread.start()
-    progress_thread.start()
-
-    # Wait for connection thread with timeout
-    thread.join(timeout)
-
-    # Stop progress thread
-    connection_result["completed"] = True
-    progress_thread.join(2)  # Give progress thread time to stop
-
-    print("\n", end="")  # Clear the progress line
-
-    if thread.is_alive():
-        print(f"⚠️ Connection timed out after {timeout} seconds")
-        print("Force terminating connection attempt...")
-        # Force mark as completed to stop any hanging threads
-        connection_result["completed"] = True
-        return False, "Connection timeout - thread may still be running"
-
-    if connection_result["success"]:
-        print("✅ Connection successful!")
-        return True, None
-    else:
-        error_msg = connection_result["error"] or "Unknown connection error"
-        print(f"❌ Connection failed: {error_msg}")
-        return False, connection_result["error"]
+    return execute_with_timeout_and_progress(
+        connect_operation,
+        "Connecting",
+        timeout,
+        "Connection successful!",
+        "Connection timed out",
+        "Connection failed"
+    )
 
 
 def signal_handler(sig, frame):  # pylint: disable=unused-argument
@@ -161,58 +122,32 @@ def drone1_independent_sequence(drone):
     print("🟦 Drone 1 - Independent sequence starting...")
 
     try:
-        # Compact circular pattern (staying within 50cm radius)
-        print("🟦 Drone 1 - Performing compact circular pattern")
-        for i in range(6):  # 6 sides for a hexagon-like circle
-            try:
-                drone.move_forward(20)  # Small movements to stay within bounds
-                track_movement("move_forward", 20, f"Drone 1 circular step {i+1}", "drone1")
-                time.sleep(0.5)
-                drone.rotate_clockwise(60)  # 360/6 = 60 degrees
-                track_movement("rotate_clockwise", 60, f"Drone 1 circular rotate {i+1}", "drone1")
-                time.sleep(0.5)
-                # Minimal height changes
-                if i % 2 == 0:
-                    drone.move_up(20)  # Minimum allowed
-                    track_movement("move_up", 20, f"Drone 1 circular up {i+1}", "drone1")
-                    time.sleep(0.5)
-                else:
-                    drone.move_down(20)  # Back down
-                    track_movement("move_down", 20, f"Drone 1 circular down {i+1}", "drone1")
-                    time.sleep(0.5)
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"🟦 Drone 1 - Circular step {i+1} error: {e}")
-                continue
+        # Compact circular pattern (6-sided hexagon)
+        execute_geometric_pattern(drone, "hexagon", 6, 20, "Drone 1", True)
 
-        # Tiny square pattern (within 40cm total movement)
-        print("🟦 Drone 1 - Compact square pattern")
+        # Tiny square pattern
+        execute_geometric_pattern(drone, "square", 4, 20, "Drone 1", False)
+
+        # Single height adjustment and rotation dance
         try:
-            # Very small square movements to stay within 2M boundary
-            for i in range(4):  # Complete square
-                drone.move_forward(20)  # Minimum distance
-                track_movement("move_forward", 20, f"Drone 1 square step {i+1}", "drone1")
-                time.sleep(0.5)
-                drone.rotate_clockwise(90)
-                track_movement("rotate_clockwise", 90, f"Drone 1 square rotate {i+1}", "drone1")
-                time.sleep(0.5)
-
-            # Single height adjustment
-            drone.move_up(20)  # Go up
+            drone.move_up(20)
             track_movement("move_up", 20, "Drone 1 square height up", "drone1")
             time.sleep(0.5)
 
             # Rotate in place for visual effect
             for i in range(4):
                 drone.rotate_clockwise(90)
-                track_movement("rotate_clockwise", 90, f"Drone 1 final rotate {i+1}", "drone1")
+                track_movement("rotate_clockwise", 90,
+                               f"Drone 1 final rotate {i+1}", "drone1")
                 time.sleep(0.3)
 
-            drone.move_down(20)  # Return to original height
-            track_movement("move_down", 20, "Drone 1 square height down", "drone1")
+            drone.move_down(20)
+            track_movement("move_down", 20, "Drone 1 square height down",
+                           "drone1")
             time.sleep(0.5)
 
         except Exception as e:  # pylint: disable=broad-except
-            print(f"🟦 Drone 1 - Compact square error: {e}")
+            print(f"🟦 Drone 1 - Final sequence error: {e}")
 
         print("🟦 Drone 1 - Independent sequence completed!")
 
@@ -225,75 +160,56 @@ def drone2_independent_sequence(drone):
     print("🟨 Drone 2 - Independent sequence starting...")
 
     try:
-        # Compact triangle pattern (staying within 60cm total)
-        print("🟨 Drone 2 - Performing compact triangle pattern")
-        for i in range(3):  # Triangle has 3 sides
-            try:
-                drone.move_forward(20)  # Minimum distance to stay compact
-                track_movement("move_forward", 20, f"Drone 2 triangle step {i+1}", "drone2")
-                time.sleep(0.5)
-                drone.rotate_clockwise(120)  # 360/3 = 120 degrees
-                track_movement("rotate_clockwise", 120, f"Drone 2 triangle rotate {i+1}", "drone2")
-                time.sleep(0.5)
-                # Minimal height variation
-                if i == 1:  # Only middle side goes up
-                    drone.move_up(20)  # Minimum allowed
-                    track_movement("move_up", 20, "Drone 2 triangle height up", "drone2")
-                    time.sleep(0.5)
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"🟨 Drone 2 - Triangle step {i+1} error: {e}")
-                continue
+        # Compact triangle pattern
+        execute_geometric_pattern(drone, "triangle", 3, 20, "Drone 2", False)
 
-        # Return to original height
+        # Additional height adjustment for triangle
         try:
             drone.move_down(20)
-            track_movement("move_down", 20, "Drone 2 triangle height down", "drone2")
+            track_movement("move_down", 20, "Drone 2 triangle height down",
+                           "drone2")
             time.sleep(0.5)
         except Exception as e:  # pylint: disable=broad-except
             print(f"🟨 Drone 2 - Height return error: {e}")
 
-        # Vertical oscillation (in place)
+        # Vertical oscillation pattern
         print("🟨 Drone 2 - Vertical oscillation pattern")
-        try:
-            for i in range(3):  # 3 vertical movements
-                drone.move_up(20)  # Go up
-                track_movement("move_up", 20, f"Drone 2 oscillation up {i+1}", "drone2")
-                time.sleep(0.5)
-                drone.rotate_clockwise(120)  # Rotate while going up
-                track_movement("rotate_clockwise", 120, f"Drone 2 oscillation rotate {i+1}", "drone2")
-                time.sleep(0.3)
-                drone.move_down(20)  # Go back down
-                track_movement("move_down", 20, f"Drone 2 oscillation down {i+1}", "drone2")
-                time.sleep(0.5)
-                drone.rotate_counter_clockwise(120)  # Counter-rotate
-                track_movement("rotate_counter_clockwise", 120, f"Drone 2 oscillation counter-rotate {i+1}", "drone2")
-                time.sleep(0.3)
-        except Exception as e:  # pylint: disable=broad-except
-            print(f"🟨 Drone 2 - Vertical oscillation error: {e}")
+        oscillation_movements = []
+        for i in range(3):
+            oscillation_movements.extend([
+                {"type": "move_up", "distance": 20,
+                 "description": f"Drone 2 oscillation up {i+1}"},
+                {"type": "rotate_clockwise", "distance": 120,
+                 "description": f"Drone 2 oscillation rotate {i+1}",
+                 "wait_time": 0.3},
+                {"type": "move_down", "distance": 20,
+                 "description": f"Drone 2 oscillation down {i+1}"},
+                {"type": "rotate_counter_clockwise", "distance": 120,
+                 "description": f"Drone 2 oscillation counter-rotate {i+1}",
+                 "wait_time": 0.3}
+            ])
 
-        # Figure-8 pattern (very compact)
+        execute_drone_movement_sequence(drone, "vertical oscillation",
+                                        oscillation_movements, "drone2")
+
+        # Figure-8 pattern (two circles in opposite directions)
         print("🟨 Drone 2 - Compact figure-8 pattern")
-        try:
-            # First half of figure-8
-            for i in range(4):  # Small circle
-                drone.move_forward(20)
-                track_movement("move_forward", 20, f"Drone 2 figure-8 step1 {i+1}", "drone2")
-                time.sleep(0.3)
-                drone.rotate_clockwise(90)
-                track_movement("rotate_clockwise", 90, f"Drone 2 figure-8 rotate1 {i+1}", "drone2")
-                time.sleep(0.3)
+        execute_geometric_pattern(drone, "circle1", 4, 20, "Drone 2", False)
 
-            # Second half of figure-8 (counter-clockwise)
-            for i in range(4):  # Small circle in opposite direction
+        # Second half of figure-8 (counter-clockwise)
+        for i in range(4):
+            try:
                 drone.move_forward(20)
-                track_movement("move_forward", 20, f"Drone 2 figure-8 step2 {i+1}", "drone2")
+                track_movement("move_forward", 20,
+                               f"Drone 2 figure-8 step2 {i+1}", "drone2")
                 time.sleep(0.3)
                 drone.rotate_counter_clockwise(90)
-                track_movement("rotate_counter_clockwise", 90, f"Drone 2 figure-8 rotate2 {i+1}", "drone2")
+                track_movement("rotate_counter_clockwise", 90,
+                               f"Drone 2 figure-8 rotate2 {i+1}", "drone2")
                 time.sleep(0.3)
-
-        except Exception as e:  # pylint: disable=broad-except
-            print(f"🟨 Drone 2 - Figure-8 error: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                print(f"🟨 Drone 2 - Figure-8 step2 {i+1} error: {e}")
+                continue
 
         print("🟨 Drone 2 - Independent sequence completed!")
 
@@ -304,6 +220,10 @@ def drone2_independent_sequence(drone):
 def perform_independent_dance():
     """Execute independent drone sequences using threading"""
     print("\n🎭 === INDEPENDENT DANCE SEQUENCES ===")
+
+    if not swarm or not swarm.tellos:
+        print("❌ Swarm not available for independent dance")
+        return
 
     # Create threads for independent movement
     drone1_thread = threading.Thread(
@@ -331,16 +251,8 @@ def synchronized_flip_sequence():
     print("\n🤸 === SYNCHRONIZED FLIP SEQUENCE ===")
 
     try:
-        # Check battery levels
-        for i, tello in enumerate(swarm.tellos):
-            try:
-                battery = tello.get_battery()
-                print(f"Drone {i+1} battery: {battery}%")
-                if battery < 50:
-                    print(f"Warning: Drone {i+1} battery is low ({battery}%).")
-                    print("Flips may not work with low battery.")
-            except Exception as e:  # pylint: disable=broad-except
-                print(f"Could not get battery level for drone {i+1}: {e}")
+        # Check battery levels using helper
+        check_battery_levels()
 
         # Ensure adequate height (respecting 20cm minimum)
         sync_point("Moving to flip height")
@@ -369,7 +281,7 @@ def synchronized_flip_sequence():
 
 
 def synchronized_formation_dance():
-    """Synchronized formation dance where drones move together - Compact 2M x 2M design"""
+    """Synchronized formation dance - Compact 2M x 2M design"""
     print("\n💫 === SYNCHRONIZED FORMATION DANCE ===")
 
     # Formation 1: Gentle side by side movement (very small distances)
@@ -433,7 +345,7 @@ def synchronized_formation_dance():
 
 
 def return_to_initial_position():
-    """Return both drones to their initial takeoff position with accuracy using tracked movements"""
+    """Return both drones to their initial takeoff position"""
     print("\n🏠 === RETURNING TO INITIAL POSITION ===")
 
     # Get current estimated positions
@@ -441,10 +353,13 @@ def return_to_initial_position():
     drone1_pos = position_tracker["drone_positions"]["drone1"]
     drone2_pos = position_tracker["drone_positions"]["drone2"]
 
-    print(f"🏠 Current estimated positions:")
-    print(f"   Swarm: x={swarm_pos['x']}, y={swarm_pos['y']}, z={swarm_pos['z']}, rot={swarm_pos['rotation']}")
-    print(f"   Drone1: x={drone1_pos['x']}, y={drone1_pos['y']}, z={drone1_pos['z']}, rot={drone1_pos['rotation']}")
-    print(f"   Drone2: x={drone2_pos['x']}, y={drone2_pos['y']}, z={drone2_pos['z']}, rot={drone2_pos['rotation']}")
+    print("🏠 Current estimated positions:")
+    print(f"   Swarm: x={swarm_pos['x']}, y={swarm_pos['y']}, "
+          f"z={swarm_pos['z']}, rot={swarm_pos['rotation']}")
+    print(f"   Drone1: x={drone1_pos['x']}, y={drone1_pos['y']}, "
+          f"z={drone1_pos['z']}, rot={drone1_pos['rotation']}")
+    print(f"   Drone2: x={drone2_pos['x']}, y={drone2_pos['y']}, "
+          f"z={drone2_pos['z']}, rot={drone2_pos['rotation']}")
 
     # Step 1: Ensure both drones are at a safe, standardized height
     sync_point("Standardizing height for return")
@@ -452,74 +367,32 @@ def return_to_initial_position():
     track_movement("move_up", 50, "Safe return height")
     time.sleep(2)
 
-    # Step 2: First bring both individual drones back to their swarm center positions
+    # Step 2: Bring both individual drones back to swarm center positions
     sync_point("Returning individual drones to swarm formation")
 
-    # Calculate movements needed to center each drone relative to swarm
-    drone1_return_x = -drone1_pos["x"]
-    drone1_return_y = -drone1_pos["y"]
-    drone2_return_x = -drone2_pos["x"]
-    drone2_return_y = -drone2_pos["y"]
+    if not swarm or not swarm.tellos:
+        print("❌ Swarm not available for return to center")
+        return
 
-    print(f"🏠 Drone1 needs: x={drone1_return_x}, y={drone1_return_y}")
-    print(f"🏠 Drone2 needs: x={drone2_return_x}, y={drone2_return_y}")
-
-    # Return drone 1 to center
-    if abs(drone1_return_x) > 10:  # Only move if significant displacement
-        if drone1_return_x > 0:
-            safe_command(swarm.tellos[0], "move_right", min(abs(drone1_return_x), 100),
-                        description=f"Drone 1 return X: {drone1_return_x}")
-            track_movement("move_right", min(abs(drone1_return_x), 100), "Drone 1 return X", "drone1")
-        else:
-            safe_command(swarm.tellos[0], "move_left", min(abs(drone1_return_x), 100),
-                        description=f"Drone 1 return X: {drone1_return_x}")
-            track_movement("move_left", min(abs(drone1_return_x), 100), "Drone 1 return X", "drone1")
-        time.sleep(2)
-
-    if abs(drone1_return_y) > 10:  # Only move if significant displacement
-        if drone1_return_y > 0:
-            safe_command(swarm.tellos[0], "move_forward", min(abs(drone1_return_y), 100),
-                        description=f"Drone 1 return Y: {drone1_return_y}")
-            track_movement("move_forward", min(abs(drone1_return_y), 100), "Drone 1 return Y", "drone1")
-        else:
-            safe_command(swarm.tellos[0], "move_back", min(abs(drone1_return_y), 100),
-                        description=f"Drone 1 return Y: {drone1_return_y}")
-            track_movement("move_back", min(abs(drone1_return_y), 100), "Drone 1 return Y", "drone1")
-        time.sleep(2)
-
-    # Return drone 2 to center
-    if abs(drone2_return_x) > 10:  # Only move if significant displacement
-        if drone2_return_x > 0:
-            safe_command(swarm.tellos[1], "move_right", min(abs(drone2_return_x), 100),
-                        description=f"Drone 2 return X: {drone2_return_x}")
-            track_movement("move_right", min(abs(drone2_return_x), 100), "Drone 2 return X", "drone2")
-        else:
-            safe_command(swarm.tellos[1], "move_left", min(abs(drone2_return_x), 100),
-                        description=f"Drone 2 return X: {drone2_return_x}")
-            track_movement("move_left", min(abs(drone2_return_x), 100), "Drone 2 return X", "drone2")
-        time.sleep(2)
-
-    if abs(drone2_return_y) > 10:  # Only move if significant displacement
-        if drone2_return_y > 0:
-            safe_command(swarm.tellos[1], "move_forward", min(abs(drone2_return_y), 100),
-                        description=f"Drone 2 return Y: {drone2_return_y}")
-            track_movement("move_forward", min(abs(drone2_return_y), 100), "Drone 2 return Y", "drone2")
-        else:
-            safe_command(swarm.tellos[1], "move_back", min(abs(drone2_return_y), 100),
-                        description=f"Drone 2 return Y: {drone2_return_y}")
-            track_movement("move_back", min(abs(drone2_return_y), 100), "Drone 2 return Y", "drone2")
-        time.sleep(2)
+    # Use helper functions to return drones to center
+    return_drone_to_center(swarm.tellos[0], "Drone 1", drone1_pos)
+    return_drone_to_center(swarm.tellos[1], "Drone 2", drone2_pos)
 
     # Reset individual drone position tracking since they're now centered
-    position_tracker["drone_positions"]["drone1"] = {"x": 0, "y": 0, "z": 0, "rotation": 0}
-    position_tracker["drone_positions"]["drone2"] = {"x": 0, "y": 0, "z": 0, "rotation": 0}
+    position_tracker["drone_positions"]["drone1"] = {
+        "x": 0, "y": 0, "z": 0, "rotation": 0
+    }
+    position_tracker["drone_positions"]["drone2"] = {
+        "x": 0, "y": 0, "z": 0, "rotation": 0
+    }
 
     # Step 3: Reset orientation for both drones
     sync_point("Resetting orientation to forward (0 degrees)")
 
     # Calculate rotation needed to return to 0 degrees
     swarm_rotation_needed = -swarm_pos["rotation"]
-    if abs(swarm_rotation_needed) > 10:  # Only rotate if significant rotation needed
+    # Only rotate if significant rotation needed
+    if abs(swarm_rotation_needed) > 10:
         # Normalize to shortest rotation path
         if swarm_rotation_needed > 180:
             swarm_rotation_needed -= 360
@@ -531,7 +404,11 @@ def return_to_initial_position():
         # Break into smaller rotation chunks
         rotation_chunks = []
         remaining_rotation = abs(swarm_rotation_needed)
-        direction = "rotate_clockwise" if swarm_rotation_needed > 0 else "rotate_counter_clockwise"
+        # Calculate rotation direction
+        if swarm_rotation_needed > 0:
+            direction = "rotate_clockwise"
+        else:
+            direction = "rotate_counter_clockwise"
 
         while remaining_rotation > 0:
             chunk = min(remaining_rotation, 90)  # Max 90 degrees per chunk
@@ -539,8 +416,8 @@ def return_to_initial_position():
             remaining_rotation -= chunk
 
         for i, chunk in enumerate(rotation_chunks):
-            safe_command(swarm, direction, chunk,
-                        description=f"Orientation reset {i+1}/{len(rotation_chunks)}: {chunk}°")
+            desc = f"Orientation reset {i+1}/{len(rotation_chunks)}: {chunk}°"
+            safe_command(swarm, direction, chunk, description=desc)
             track_movement(direction, chunk, f"Orientation reset {i+1}")
             time.sleep(0.8)
 
@@ -552,48 +429,56 @@ def return_to_initial_position():
     swarm_return_y = -swarm_pos["y"]
     swarm_return_z = -swarm_pos["z"]
 
-    print(f"🏠 Swarm return needed: x={swarm_return_x}, y={swarm_return_y}, z={swarm_return_z}")
+    print(f"🏠 Swarm return needed: x={swarm_return_x}, "
+          f"y={swarm_return_y}, z={swarm_return_z}")
 
     # Return X position
     if abs(swarm_return_x) > 10:
         if swarm_return_x > 0:
-            safe_command(swarm, "move_right", min(abs(swarm_return_x), 100),
-                        description=f"Swarm return X: {swarm_return_x}")
-            track_movement("move_right", min(abs(swarm_return_x), 100), "Swarm return X")
+            move_dist = min(abs(swarm_return_x), 100)
+            safe_command(swarm, "move_right", move_dist,
+                         description=f"Swarm return X: {swarm_return_x}")
+            track_movement("move_right", move_dist, "Swarm return X")
         else:
-            safe_command(swarm, "move_left", min(abs(swarm_return_x), 100),
-                        description=f"Swarm return X: {swarm_return_x}")
-            track_movement("move_left", min(abs(swarm_return_x), 100), "Swarm return X")
+            move_dist = min(abs(swarm_return_x), 100)
+            safe_command(swarm, "move_left", move_dist,
+                         description=f"Swarm return X: {swarm_return_x}")
+            track_movement("move_left", move_dist, "Swarm return X")
         time.sleep(2)
 
     # Return Y position
     if abs(swarm_return_y) > 10:
         if swarm_return_y > 0:
-            safe_command(swarm, "move_forward", min(abs(swarm_return_y), 100),
-                        description=f"Swarm return Y: {swarm_return_y}")
-            track_movement("move_forward", min(abs(swarm_return_y), 100), "Swarm return Y")
+            move_dist = min(abs(swarm_return_y), 100)
+            safe_command(swarm, "move_forward", move_dist,
+                         description=f"Swarm return Y: {swarm_return_y}")
+            track_movement("move_forward", move_dist, "Swarm return Y")
         else:
-            safe_command(swarm, "move_back", min(abs(swarm_return_y), 100),
-                        description=f"Swarm return Y: {swarm_return_y}")
-            track_movement("move_back", min(abs(swarm_return_y), 100), "Swarm return Y")
+            move_dist = min(abs(swarm_return_y), 100)
+            safe_command(swarm, "move_back", move_dist,
+                         description=f"Swarm return Y: {swarm_return_y}")
+            track_movement("move_back", move_dist, "Swarm return Y")
         time.sleep(2)
 
     # Return Z position (height) - be more conservative with height
     if abs(swarm_return_z) > 20:  # Only adjust if significantly off
-        target_adjustment = min(abs(swarm_return_z), 80)  # Limit height adjustments
+        # Limit height adjustments
+        target_adjustment = min(abs(swarm_return_z), 80)
         if swarm_return_z > 0:
             safe_command(swarm, "move_up", target_adjustment,
-                        description=f"Swarm return Z: {swarm_return_z}")
+                         description=f"Swarm return Z: {swarm_return_z}")
             track_movement("move_up", target_adjustment, "Swarm return Z")
         else:
             safe_command(swarm, "move_down", target_adjustment,
-                        description=f"Swarm return Z: {swarm_return_z}")
+                         description=f"Swarm return Z: {swarm_return_z}")
             track_movement("move_down", target_adjustment, "Swarm return Z")
         time.sleep(2)
 
     # Final position check
     final_swarm_pos = position_tracker["swarm_position"]
-    print(f"🏠 Final estimated position: x={final_swarm_pos['x']}, y={final_swarm_pos['y']}, z={final_swarm_pos['z']}, rot={final_swarm_pos['rotation']}")
+    print(f"🏠 Final estimated position: x={final_swarm_pos['x']}, "
+          f"y={final_swarm_pos['y']}, z={final_swarm_pos['z']}, "
+          f"rot={final_swarm_pos['rotation']}")
 
     print("🏠 Return to initial position sequence completed!")
     print("🏠 Drones should now be very close to their takeoff location")
@@ -601,106 +486,32 @@ def return_to_initial_position():
 
 def safe_takeoff(swarm_instance, timeout=10):
     """Takeoff with timeout to prevent hanging"""
-    takeoff_result = {"success": False, "error": None, "completed": False}
+    def takeoff_operation():
+        swarm_instance.takeoff()
 
-    def takeoff_thread():
-        try:
-            swarm_instance.takeoff()
-            takeoff_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            takeoff_result["error"] = e
-        finally:
-            takeoff_result["completed"] = True
-
-    def show_takeoff_progress():
-        for i in range(timeout):
-            if takeoff_result["completed"]:
-                break
-            print(f"Taking off... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=takeoff_thread)
-    progress_thread = threading.Thread(target=show_takeoff_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    print("Initiating takeoff...")
-    thread.start()
-    progress_thread.start()
-
-    thread.join(timeout)
-
-    # Stop progress thread
-    takeoff_result["completed"] = True
-    progress_thread.join(2)
-
-    print("\n", end="")  # Clear progress line
-
-    if thread.is_alive():
-        print(f"⚠️ Takeoff timed out after {timeout} seconds")
-        takeoff_result["completed"] = True
-        return False, "Takeoff timeout"
-
-    if takeoff_result["success"]:
-        print("✅ Takeoff successful!")
-        return True, None
-    else:
-        error_msg = takeoff_result["error"] or "Unknown takeoff error"
-        print(f"❌ Takeoff failed: {error_msg}")
-        return False, takeoff_result["error"]
+    return execute_with_timeout_and_progress(
+        takeoff_operation,
+        "Taking off",
+        timeout,
+        "Takeoff successful!",
+        "Takeoff timed out",
+        "Takeoff failed"
+    )
 
 
 def safe_landing(swarm_instance, timeout=10):
     """Landing with timeout to prevent hanging"""
-    landing_result = {"success": False, "error": None, "completed": False}
+    def landing_operation():
+        swarm_instance.land()
 
-    def landing_thread():
-        try:
-            swarm_instance.land()
-            landing_result["success"] = True
-        except Exception as e:  # pylint: disable=broad-except
-            landing_result["error"] = e
-        finally:
-            landing_result["completed"] = True
-
-    def show_landing_progress():
-        for i in range(timeout):
-            if landing_result["completed"]:
-                break
-            print(f"Landing... ({i+1}/{timeout}s)", end="\r")
-            time.sleep(1)
-
-    thread = threading.Thread(target=landing_thread)
-    progress_thread = threading.Thread(target=show_landing_progress)
-
-    thread.daemon = True
-    progress_thread.daemon = True
-
-    print("Initiating landing...")
-    thread.start()
-    progress_thread.start()
-
-    thread.join(timeout)
-
-    # Stop progress thread
-    landing_result["completed"] = True
-    progress_thread.join(2)
-
-    print("\n", end="")  # Clear progress line
-
-    if thread.is_alive():
-        print(f"⚠️ Landing timed out after {timeout} seconds")
-        landing_result["completed"] = True
-        return False, "Landing timeout"
-
-    if landing_result["success"]:
-        print("✅ Landing successful!")
-        return True, None
-    else:
-        error_msg = landing_result["error"] or "Unknown landing error"
-        print(f"❌ Landing failed: {error_msg}")
-        return False, landing_result["error"]
+    return execute_with_timeout_and_progress(
+        landing_operation,
+        "Landing",
+        timeout,
+        "Landing successful!",
+        "Landing timed out",
+        "Landing failed"
+    )
 
 
 def check_swarm_connection(swarm_instance, timeout=5):
@@ -741,7 +552,8 @@ def timeout_decorator(timeout_seconds=10):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            result = {"return_value": None, "exception": None, "completed": False}
+            result = {"return_value": None, "exception": None,
+                      "completed": False}
 
             def target():
                 try:
@@ -758,10 +570,12 @@ def timeout_decorator(timeout_seconds=10):
 
             if thread.is_alive():
                 result["completed"] = True
-                raise TimeoutError(f"Function {func.__name__} timed out after {timeout_seconds} seconds")
+                timeout_msg = (f"Function {func.__name__} timed out "
+                               f"after {timeout_seconds} seconds")
+                raise TimeoutError(timeout_msg)
 
             if result["exception"]:
-                raise result["exception"]
+                raise result["exception"]  # pylint: disable=raising-bad-type
 
             return result["return_value"]
         return wrapper
@@ -813,6 +627,204 @@ def test_basic_connectivity(host_ip, timeout=5):
         return False, test_result["error"]
 
 
+# Helper functions to eliminate duplicate code patterns
+
+def execute_with_timeout_and_progress(operation_func, progress_message,
+                                      timeout=10,
+                                      success_message="Operation successful!",
+                                      timeout_message="Operation timed out",
+                                      error_prefix="Operation failed"):
+    """Generic helper for executing operations with timeout and progress"""
+    operation_result = {"success": False, "error": None, "completed": False}
+
+    def operation_thread():
+        try:
+            operation_func()
+            operation_result["success"] = True
+        except Exception as e:  # pylint: disable=broad-except
+            operation_result["error"] = e
+        finally:
+            operation_result["completed"] = True
+
+    def show_progress():
+        for i in range(timeout):
+            if operation_result["completed"]:
+                break
+            print(f"{progress_message} ({i+1}/{timeout}s)", end="\r")
+            time.sleep(1)
+
+    thread = threading.Thread(target=operation_thread)
+    progress_thread = threading.Thread(target=show_progress)
+
+    thread.daemon = True
+    progress_thread.daemon = True
+
+    print(f"Initiating {progress_message.lower()}...")
+    thread.start()
+    progress_thread.start()
+
+    thread.join(timeout)
+
+    # Stop progress thread
+    operation_result["completed"] = True
+    progress_thread.join(2)
+
+    print("\n", end="")  # Clear progress line
+
+    if thread.is_alive():
+        print(f"⚠️ {timeout_message} after {timeout} seconds")
+        operation_result["completed"] = True
+        return False, f"{timeout_message.lower()}"
+
+    if operation_result["success"]:
+        print(f"✅ {success_message}")
+        return True, None
+    else:
+        error_msg = operation_result["error"] or \
+            f"Unknown {error_prefix.lower()} error"
+        print(f"❌ {error_prefix}: {error_msg}")
+        return False, operation_result["error"]
+
+
+def execute_drone_movement_sequence(drone, sequence_name, movements, drone_id):
+    """Generic helper for executing drone movements with error handling"""
+    print(f"🔄 {drone_id} - Performing {sequence_name}")
+
+    for i, movement in enumerate(movements):
+        try:
+            movement_type = movement["type"]
+            distance = movement.get("distance", 0)
+            description = movement.get("description",
+                                       f"{sequence_name} step {i+1}")
+            wait_time = movement.get("wait_time", 0.5)
+
+            # Execute the movement
+            if movement_type == "move_forward":
+                drone.move_forward(distance)
+            elif movement_type == "move_back":
+                drone.move_back(distance)
+            elif movement_type == "move_left":
+                drone.move_left(distance)
+            elif movement_type == "move_right":
+                drone.move_right(distance)
+            elif movement_type == "move_up":
+                drone.move_up(distance)
+            elif movement_type == "move_down":
+                drone.move_down(distance)
+            elif movement_type == "rotate_clockwise":
+                drone.rotate_clockwise(distance)
+            elif movement_type == "rotate_counter_clockwise":
+                drone.rotate_counter_clockwise(distance)
+
+            # Track the movement
+            track_movement(movement_type, distance, description, drone_id)
+            time.sleep(wait_time)
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🔄 {drone_id} - {sequence_name} step {i+1} error: {e}")
+            continue
+
+
+def check_battery_levels():
+    """Helper to check battery levels for all drones in swarm"""
+    if not swarm or not swarm.tellos:
+        print("❌ Swarm not available for battery check")
+        return []
+
+    battery_info = []
+    for i, tello in enumerate(swarm.tellos):
+        try:
+            battery = tello.get_battery()
+            battery_info.append({"drone": i+1, "battery": battery})
+            print(f"Drone {i+1} battery: {battery}%")
+            if battery < 50:
+                print(f"Warning: Drone {i+1} battery is low ({battery}%).")
+                print("Some operations may not work with low battery.")
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"Could not get battery level for drone {i+1}: {e}")
+            battery_info.append({"drone": i+1, "battery": None,
+                                 "error": str(e)})
+    return battery_info
+
+
+def return_drone_to_center(drone_instance, drone_id, position_offset):
+    """Helper to return an individual drone to center position"""
+    return_x = -position_offset["x"]
+    return_y = -position_offset["y"]
+
+    print(f"🏠 {drone_id} needs: x={return_x}, y={return_y}")
+
+    # Return X position
+    if abs(return_x) > 10:  # Only move if significant displacement
+        move_distance = min(abs(return_x), 100)
+        if return_x > 0:
+            safe_command(drone_instance, "move_right", move_distance,
+                         description=f"{drone_id} return X: {return_x}")
+            track_movement("move_right", move_distance,
+                           f"{drone_id} return X", drone_id.lower())
+        else:
+            safe_command(drone_instance, "move_left", move_distance,
+                         description=f"{drone_id} return X: {return_x}")
+            track_movement("move_left", move_distance,
+                           f"{drone_id} return X", drone_id.lower())
+        time.sleep(2)
+
+    # Return Y position
+    if abs(return_y) > 10:  # Only move if significant displacement
+        move_distance = min(abs(return_y), 100)
+        if return_y > 0:
+            safe_command(drone_instance, "move_forward", move_distance,
+                         description=f"{drone_id} return Y: {return_y}")
+            track_movement("move_forward", move_distance,
+                           f"{drone_id} return Y", drone_id.lower())
+        else:
+            safe_command(drone_instance, "move_back", move_distance,
+                         description=f"{drone_id} return Y: {return_y}")
+            track_movement("move_back", move_distance,
+                           f"{drone_id} return Y", drone_id.lower())
+        time.sleep(2)
+
+
+def execute_geometric_pattern(drone, pattern_type, sides, distance, drone_id,
+                              include_height=False):
+    """Helper to execute geometric patterns (circle, square, triangle, etc.)"""
+    angle_per_side = 360 / sides
+
+    for i in range(sides):
+        try:
+            # Move forward
+            drone.move_forward(distance)
+            track_movement("move_forward", distance,
+                           f"{drone_id} {pattern_type} step {i+1}",
+                           drone_id.lower())
+            time.sleep(0.5)
+
+            # Rotate
+            drone.rotate_clockwise(angle_per_side)
+            track_movement("rotate_clockwise", angle_per_side,
+                           f"{drone_id} {pattern_type} rotate {i+1}",
+                           drone_id.lower())
+            time.sleep(0.5)
+
+            # Optional height variation
+            if include_height and i % 2 == 0:
+                drone.move_up(20)
+                track_movement("move_up", 20,
+                               f"{drone_id} {pattern_type} up {i+1}",
+                               drone_id.lower())
+                time.sleep(0.5)
+            elif include_height and i % 2 == 1:
+                drone.move_down(20)
+                track_movement("move_down", 20,
+                               f"{drone_id} {pattern_type} down {i+1}",
+                               drone_id.lower())
+                time.sleep(0.5)
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"🔄 {drone_id} - {pattern_type} step {i+1} error: {e}")
+            continue
+
+
 def main():
     global swarm  # pylint: disable=global-statement
 
@@ -854,7 +866,6 @@ def main():
             return
 
         debug_print("Connection successful, starting takeoff")
-        print("Successfully connected to swarm!")
 
         # Safe takeoff with timeout
         sync_point("Taking off")
@@ -1024,12 +1035,12 @@ def emergency_land_with_force_exit(swarm_instance, timeout=5):
             try:
                 print(f"Emergency stop for drone {i+1}")
                 tello.emergency()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(f"Emergency command failed for drone {i+1}: {e}")
                 try:
                     tello.land()
                     print(f"Land command sent for drone {i+1}")
-                except Exception as land_e:
+                except Exception as land_e:  # pylint: disable=broad-except
                     print(f"Land failed for drone {i+1}: {land_e}")
 
         # Brief wait for commands to process
@@ -1039,20 +1050,20 @@ def emergency_land_with_force_exit(swarm_instance, timeout=5):
         try:
             swarm_instance.end()
             print("Connection terminated")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print(f"End connection failed: {e}")
 
         # Cancel force exit timer since we completed successfully
         force_exit_timer.cancel()
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         print(f"Emergency landing error: {e}")
         # Don't cancel timer - let it force exit
 
 
 def reset_position_tracking():
-    """Reset position tracking to initial state - Updated for 2M x 2M boundary"""
-    global position_tracker
+    """Reset position tracking to initial state for 2M x 2M boundary"""
+    global position_tracker  # pylint: disable=global-statement
     position_tracker = {
         "initial_height": 0,
         "movements": [],
@@ -1069,8 +1080,7 @@ def reset_position_tracking():
 
 def track_movement(movement_type, distance, description="", drone_id=None):
     """Track a movement for potential compensation later"""
-    global position_tracker
-
+    # Use position_tracker directly instead of global declaration
     # Track movement in history
     position_tracker["movements"].append({
         "type": movement_type,
@@ -1150,8 +1160,9 @@ def enhanced_safe_landing_sequence():
         print(f"❌ Enhanced landing failed: {landing_error}")
         print("🛬 Attempting direct landing command as backup...")
         try:
-            swarm.land()
-            print("✅ Backup landing command sent successfully")
+            if swarm:
+                swarm.land()
+                print("✅ Backup landing command sent successfully")
         except Exception as e:  # pylint: disable=broad-except
             print(f"❌ Backup landing failed: {e}")
             print("🚨 Manual intervention may be required")
