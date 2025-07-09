@@ -58,6 +58,13 @@ class ActionExecutor:
         self.connected = False
         self.connection_lock = threading.Lock()
 
+        # Keepalive related attributes
+        self.keepalive_thread: Optional[threading.Thread] = None
+        self.keepalive_interval = 10  # seconds
+        self.stop_keepalive = threading.Event()
+        self.last_action_time = 0.0  # Track last action timestamp
+        self.action_lock = threading.Lock()  # Lock for thread-safe timestamp updates
+
         # Default drone hosts
         if drone_hosts is None:
             drone_hosts = ["192.168.137.21", "192.168.137.22"]
@@ -81,13 +88,13 @@ class ActionExecutor:
                     f"Created drone instance {drone_id} for host {host}"
                 )
             # Create swarm from individual drones
-            # self.swarm = TelloSwarm(drones)
+            self.swarm = TelloSwarm(drones)
 
             # For WSL compatibility, use a specific IP and ports
-            wsl_ip = "172.28.3.205"
-            drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-            drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
-            self.swarm = TelloSwarm([drone1, drone2])
+            # wsl_ip = "172.28.3.205"
+            # drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
+            # drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+            # self.swarm = TelloSwarm([drone1, drone2])
 
             self.logger.info(f"TelloSwarm created with {len(drones)} drones")
 
@@ -138,6 +145,9 @@ class ActionExecutor:
                 # Log battery levels
                 self._log_battery_levels()
 
+                # Start keepalive thread
+                self._start_keepalive()
+
                 self.logger.info(
                     f"Successfully connected to swarm in {execution_time:.2f}s"
                 )
@@ -175,6 +185,9 @@ class ActionExecutor:
 
                 if self.swarm:
                     self.swarm.end()
+
+                # Stop keepalive thread
+                self._stop_keepalive()
 
                 self.connected = False
                 execution_time = time.time() - start_time
@@ -290,7 +303,12 @@ class ActionExecutor:
             # Execute the action with timeout
             result = self._safe_execute_command(target, action, parameters)
             result.drone_id = drone_id
-            result.execution_time = time.time() - start_time
+            execution_time = time.time() - start_time
+            result.execution_time = execution_time
+
+            # Update last action timestamp
+            with self.action_lock:
+                self.last_action_time = time.time()
 
             self.logger.info(
                 f"Action {action} on {target_name} completed: "
@@ -314,6 +332,51 @@ class ActionExecutor:
                               parameters: Dict[str, Any],
                               timeout: int = 10) -> ActionResult:
         """Safely execute command with timeout and error handling"""
+
+        # Check battery levels before executing commands
+        try:
+            if isinstance(target, Tello):
+                # Single drone check
+                battery = target.get_battery()
+                if battery < 10:
+                    return ActionResult(
+                        status=ActionStatus.FAILED,
+                        message=f"Cannot execute {action}: Battery critically low ({battery}%)",
+                    )
+                elif battery < 20 and action == "takeoff":
+                    return ActionResult(
+                        status=ActionStatus.FAILED,
+                        message=f"Cannot takeoff: Battery too low ({battery}%). Minimum 20% required.",
+                    )
+            elif hasattr(target, 'tellos'):
+                # Swarm check
+                for i, tello in enumerate(target.tellos):
+                    try:
+                        battery = tello.get_battery()
+                        if battery < 10:
+                            return ActionResult(
+                                status=ActionStatus.FAILED,
+                                message=f"Cannot execute {action}: drone_{i+1} battery critically low ({battery}%)",
+                            )
+                        elif battery < 20 and action == "takeoff":
+                            return ActionResult(
+                                status=ActionStatus.FAILED,
+                                message=f"Cannot takeoff: drone_{i+1} battery too low ({battery}%). Minimum 20% required.",
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Failed to check battery for drone_{i+1}: {e}")
+                        return ActionResult(
+                            status=ActionStatus.FAILED,
+                            message=f"Failed to check battery for drone_{i+1}",
+                            error_details=str(e)
+                        )
+        except Exception as e:
+            self.logger.error(f"Failed to check battery levels: {e}")
+            return ActionResult(
+                status=ActionStatus.FAILED,
+                message="Failed to check battery levels",
+                error_details=str(e)
+            )
 
         # Handle generic "flip" action by mapping direction to specific flip
         if action == "flip" and "direction" in parameters:
@@ -459,6 +522,62 @@ class ActionExecutor:
         except Exception as e:
             self.logger.error(f"Error checking battery levels: {e}")
 
+    def _send_keepalive(self):
+        """Send keepalive signals to all drones periodically"""
+        while not self.stop_keepalive.is_set():
+            current_time = time.time()
+
+            # Skip keepalive if there was a recent action
+            with self.action_lock:
+                time_since_last_action = current_time - self.last_action_time
+                if time_since_last_action < self.keepalive_interval:
+                    self.logger.debug(
+                        f"Skipping keepalive, last action was {time_since_last_action:.1f}s ago"
+                    )
+                    # Wait for the remaining time until next interval
+                    wait_time = self.keepalive_interval - time_since_last_action
+                    self.stop_keepalive.wait(wait_time)
+                    continue
+
+            if self.connected and self.swarm:
+                try:
+                    for i, tello in enumerate(self.swarm.tellos):
+                        try:
+                            # Get battery level as a keepalive signal
+                            battery = tello.get_battery()
+                            self.logger.debug(
+                                f"Keepalive - drone_{i + 1} battery: {battery}%"
+                            )
+                            tello.send_keepalive()
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Keepalive failed for drone_{i + 1}: {e}"
+                            )
+                except Exception as e:
+                    self.logger.error(f"Error in keepalive thread: {e}")
+
+            # Wait for the specified interval
+            self.stop_keepalive.wait(self.keepalive_interval)
+
+    def _start_keepalive(self):
+        """Start the keepalive thread"""
+        if self.keepalive_thread is None or not self.keepalive_thread.is_alive():
+            self.stop_keepalive.clear()
+            self.keepalive_thread = threading.Thread(
+                target=self._send_keepalive,
+                daemon=True
+            )
+            self.keepalive_thread.start()
+            self.logger.info("Started keepalive thread")
+
+    def _stop_keepalive(self):
+        """Stop the keepalive thread"""
+        if self.keepalive_thread and self.keepalive_thread.is_alive():
+            self.stop_keepalive.set()
+            self.keepalive_thread.join(timeout=5)
+            self.keepalive_thread = None
+            self.logger.info("Stopped keepalive thread")
+
     def get_status(self) -> Dict[str, Any]:
         """Get current status of the executor and swarm"""
         status = {
@@ -553,11 +672,12 @@ class ActionExecutor:
 
     def __del__(self):
         """Cleanup on destruction"""
-        if hasattr(self, 'connected') and self.connected:
-            try:
+        try:
+            self._stop_keepalive()
+            if hasattr(self, 'connected') and self.connected:
                 self.disconnect_swarm()
-            except Exception:
-                pass
+        except Exception:
+            pass
 
 
 # Example usage and testing
