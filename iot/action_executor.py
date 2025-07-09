@@ -5,7 +5,6 @@ Handles connection to TelloSwarm and executes commands from IoT messages
 
 import json
 import logging
-import time
 import threading
 import sys
 import os
@@ -33,7 +32,6 @@ class ActionResult:
     status: ActionStatus
     message: str
     drone_id: Optional[str] = None
-    execution_time: Optional[float] = None
     error_details: Optional[str] = None
 
 
@@ -71,23 +69,29 @@ class ActionExecutor:
         """Initialize the TelloSwarm with configured drone hosts"""
         try:
             # Create individual Tello instances
-            drones = []
-            for i, host in enumerate(self.drone_hosts):
-                drone_id = f"drone_{i + 1}"
-                drone = Tello(host=host)
-                drones.append(drone)
-                self.drone_map[drone_id] = drone
-                self.logger.info(
-                    f"Created drone instance {drone_id} for host {host}"
-                )
-            # Create swarm from individual drones
+
+            # drones = []
+            # for i, host in enumerate(self.drone_hosts):
+            #     drone_id = f"drone_{i + 1}"
+            #     drone = Tello(host=host)
+            #     drones.append(drone)
+            #     self.drone_map[drone_id] = drone
+            #     self.logger.info(
+            #         f"Created drone instance {drone_id} for host {host}"
+            #     )
+            # # Create swarm from individual drones
             # self.swarm = TelloSwarm(drones)
 
             # For WSL compatibility, use a specific IP and ports
             wsl_ip = "172.28.3.205"
             drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
             drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
-            self.swarm = TelloSwarm([drone1, drone2])
+            drones = [drone1, drone2]
+            self.swarm = TelloSwarm(drones)
+
+            # Update drone map for WSL setup
+            self.drone_map["drone_1"] = drone1
+            self.drone_map["drone_2"] = drone2
 
             self.logger.info(f"TelloSwarm created with {len(drones)} drones")
 
@@ -95,12 +99,9 @@ class ActionExecutor:
             self.logger.error(f"Failed to setup swarm: {e}")
             raise
 
-    def connect_swarm(self, timeout: int = 15) -> ActionResult:
+    def connect_swarm(self) -> ActionResult:
         """
         Connect to the drone swarm
-
-        Args:
-            timeout: Connection timeout in seconds
 
         Returns:
             ActionResult with connection status
@@ -113,38 +114,17 @@ class ActionExecutor:
                 )
 
             try:
-                start_time = time.time()
                 self.logger.info("Connecting to drone swarm...")
-
-                # Connect with timeout
-                connection_thread = threading.Thread(
-                    target=self.swarm.connect
-                )
-                connection_thread.daemon = True
-                connection_thread.start()
-                connection_thread.join(timeout)
-
-                if connection_thread.is_alive():
-                    self.logger.error("Connection timed out")
-                    return ActionResult(
-                        status=ActionStatus.TIMEOUT,
-                        message=f"Connection timed out after {timeout} seconds",
-                        execution_time=time.time() - start_time
-                    )
-
+                self.swarm.connect()
                 self.connected = True
-                execution_time = time.time() - start_time
 
                 # Log battery levels
                 self._log_battery_levels()
 
-                self.logger.info(
-                    f"Successfully connected to swarm in {execution_time:.2f}s"
-                )
+                self.logger.info("Successfully connected to swarm")
                 return ActionResult(
                     status=ActionStatus.SUCCESS,
-                    message="Successfully connected to swarm",
-                    execution_time=execution_time
+                    message="Successfully connected to swarm"
                 )
 
             except Exception as e:
@@ -170,23 +150,17 @@ class ActionExecutor:
                 )
 
             try:
-                start_time = time.time()
                 self.logger.info("Disconnecting from drone swarm...")
 
                 if self.swarm:
                     self.swarm.end()
 
                 self.connected = False
-                execution_time = time.time() - start_time
+                self.logger.info("Successfully disconnected from swarm")
 
-                self.logger.info(
-                    f"Successfully disconnected from swarm in "
-                    f"{execution_time:.2f}s"
-                )
                 return ActionResult(
                     status=ActionStatus.SUCCESS,
-                    message="Successfully disconnected from swarm",
-                    execution_time=execution_time
+                    message="Successfully disconnected from swarm"
                 )
 
             except Exception as e:
@@ -216,7 +190,7 @@ class ActionExecutor:
                     message="Invalid message format"
                 )
 
-            drone_id = action_data.get("DroneID")
+            drone_id = action_data.get("droneID")
             action = action_data.get("action")
             parameters = action_data.get("parameters", {})
 
@@ -252,9 +226,15 @@ class ActionExecutor:
                     return json.loads(tool_name)
                 return tool_name
 
-            # Direct action format
-            if "DroneID" in message and "action" in message:
-                return message
+            # Direct action format - support both DroneID and droneID
+            if ("DroneID" in message or "droneID" in message) and "action" in message:
+                # Normalize to lowercase droneID for consistency
+                normalized_message = message.copy()
+                if "DroneID" in message:
+                    normalized_message["droneID"] = message["DroneID"]
+                    if "DroneID" in normalized_message:
+                        del normalized_message["DroneID"]
+                return normalized_message
 
             self.logger.warning(f"Unrecognized message format: {message}")
             return None
@@ -269,8 +249,6 @@ class ActionExecutor:
     def _execute_drone_action(self, drone_id: str, action: str,
                               parameters: Dict[str, Any]) -> ActionResult:
         """Execute action on specific drone or swarm"""
-        start_time = time.time()
-
         try:
             # Determine target (individual drone or swarm)
             if drone_id == "all" or drone_id is None:
@@ -287,10 +265,9 @@ class ActionExecutor:
                         drone_id=drone_id
                     )
 
-            # Execute the action with timeout
+            # Execute the action
             result = self._safe_execute_command(target, action, parameters)
             result.drone_id = drone_id
-            result.execution_time = time.time() - start_time
 
             self.logger.info(
                 f"Action {action} on {target_name} completed: "
@@ -306,14 +283,12 @@ class ActionExecutor:
                 status=ActionStatus.FAILED,
                 message=f"Failed to execute {action}",
                 drone_id=drone_id,
-                execution_time=time.time() - start_time,
                 error_details=str(e)
             )
 
     def _safe_execute_command(self, target, action: str,
-                              parameters: Dict[str, Any],
-                              timeout: int = 10) -> ActionResult:
-        """Safely execute command with timeout and error handling"""
+                              parameters: Dict[str, Any]) -> ActionResult:
+        """Safely execute command with error handling"""
 
         # Handle generic "flip" action by mapping direction to specific flip
         if action == "flip" and "direction" in parameters:
@@ -347,15 +322,27 @@ class ActionExecutor:
         action_mapping = {
             "takeoff": ("takeoff", []),
             "land": ("land", []),
+            # Original move_ actions
             "move_up": ("move_up", ["distance"]),
             "move_down": ("move_down", ["distance"]),
             "move_forward": ("move_forward", ["distance"]),
             "move_back": ("move_back", ["distance"]),
             "move_left": ("move_left", ["distance"]),
             "move_right": ("move_right", ["distance"]),
+            # MCP handler compatible actions
+            "up": ("move_up", ["distance"]),
+            "down": ("move_down", ["distance"]),
+            "forward": ("move_forward", ["distance"]),
+            "back": ("move_back", ["distance"]),
+            "left": ("move_left", ["distance"]),
+            "right": ("move_right", ["distance"]),
+            # Rotation actions
             "rotate_clockwise": ("rotate_clockwise", ["degrees"]),
-            "rotate_counter_clockwise": ("rotate_counter_clockwise",
-                                         ["degrees"]),
+            "rotate_counter_clockwise": ("rotate_counter_clockwise", ["degrees"]),
+            "rotate_counterclockwise": ("rotate_counter_clockwise", ["degrees"]),
+            "cw": ("rotate_clockwise", ["degrees"]),
+            "ccw": ("rotate_counter_clockwise", ["degrees"]),
+            # Flip actions
             "flip_forward": ("flip_forward", []),
             "flip_back": ("flip_back", []),
             "flip_left": ("flip_left", []),
@@ -386,48 +373,30 @@ class ActionExecutor:
                 args.append(parameters[param_name])
             else:
                 # Use default values for missing parameters
-                if param_name in ["distance", "degrees"]:
-                    # Default distance/degrees
-                    args.append(parameters.get("x", 30))
+                if param_name == "distance":
+                    # Try different parameter names for distance
+                    value = parameters.get("distance", parameters.get("x", 30))
+                    args.append(value)
+                elif param_name == "degrees":
+                    # Try different parameter names for degrees/angle
+                    value = parameters.get("degrees", parameters.get("angle", parameters.get("x", 90)))
+                    args.append(value)
                 elif param_name in ["x", "y", "z"]:
                     args.append(parameters.get(param_name, 0))
 
-        # Execute command with timeout
-        command_result = {"success": False, "error": None, "completed": False}
-
-        def command_thread():
-            try:
-                method = getattr(target, method_name)
-                method(*args)
-                command_result["success"] = True
-            except Exception as e:
-                command_result["error"] = e
-            finally:
-                command_result["completed"] = True
-
-        thread = threading.Thread(target=command_thread)
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout)
-
-        if thread.is_alive():
-            command_result["completed"] = True
-            return ActionResult(
-                status=ActionStatus.TIMEOUT,
-                message=f"Command {action} timed out after {timeout} seconds"
-            )
-
-        if command_result["success"]:
+        # Execute command
+        try:
+            method = getattr(target, method_name)
+            method(*args)
             return ActionResult(
                 status=ActionStatus.SUCCESS,
                 message=f"Successfully executed {action}"
             )
-        else:
-            error = command_result["error"]
+        except Exception as e:
             return ActionResult(
                 status=ActionStatus.FAILED,
                 message=f"Failed to execute {action}",
-                error_details=str(error) if error else "Unknown error"
+                error_details=str(e)
             )
 
     def _log_battery_levels(self):
@@ -503,8 +472,6 @@ class ActionExecutor:
             )
 
         try:
-            start_time = time.time()
-
             # Try emergency command for each drone
             for i, tello in enumerate(self.swarm.tellos):
                 try:
@@ -523,9 +490,6 @@ class ActionExecutor:
                             f"{land_e}"
                         )
 
-            # Brief wait for commands to process
-            time.sleep(2)
-
             # End connection
             try:
                 self.swarm.end()
@@ -535,12 +499,9 @@ class ActionExecutor:
                     f"Failed to end connection during emergency stop: {e}"
                 )
 
-            execution_time = time.time() - start_time
-
             return ActionResult(
                 status=ActionStatus.SUCCESS,
-                message="Emergency stop completed",
-                execution_time=execution_time
+                message="Emergency stop completed"
             )
 
         except Exception as e:
