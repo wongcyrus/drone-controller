@@ -1,6 +1,23 @@
 """
 Action Executor for Tello Drone Swarm IoT Control
-Handles connection to TelloSwarm and executes commands from IoT messages
+
+Handles connection to TelloSwarm and executes commands from IoT messages.
+Designed for integration with MCP (Model Context Protocol) server format.
+
+Key Features:
+- WSL-compatible drone swarm setup with configurable IP/ports
+- Direct message format support for MCP server integration
+- Comprehensive action mapping (move, rotate, flip, takeoff, land)
+- Battery monitoring and emergency stop functionality
+- Thread-safe connection management
+
+Usage:
+    executor = ActionExecutor()
+    result = executor.execute_action({
+        "droneID": "drone_1",
+        "action": "takeoff",
+        "parameters": {}
+    })
 """
 
 import json
@@ -44,10 +61,8 @@ class ActionExecutor:
         Initialize ActionExecutor with drone hosts
 
         Args:
-            robot_name: Name of the robot (for compatibility with pubsub.py)
-            session_key: Session key (for compatibility with pubsub.py)
-            drone_hosts: List of drone IP addresses.
-                        Defaults to predefined hosts.
+            drone_hosts: List of drone IP addresses. Defaults to WSL-compatible configuration.
+                        Note: Currently configured for WSL environment with specific IP and ports.
         """
         self.logger = logging.getLogger(__name__)
 
@@ -56,9 +71,10 @@ class ActionExecutor:
         self.connected = False
         self.connection_lock = threading.Lock()
 
-        # Default drone hosts
+        # Note: drone_hosts parameter is kept for future compatibility
+        # Currently using WSL-specific configuration regardless of this parameter
         if drone_hosts is None:
-            drone_hosts = ["192.168.137.21", "192.168.137.22"]
+            drone_hosts = ["192.168.137.21", "192.168.137.22"]  # Legacy default
 
         self.drone_hosts = drone_hosts
 
@@ -66,38 +82,23 @@ class ActionExecutor:
         self.setup_swarm()
 
     def setup_swarm(self):
-        """Initialize the TelloSwarm with configured drone hosts"""
-        try:
-            # Create individual Tello instances
+        """Initialize the TelloSwarm with WSL-compatible configuration
 
-            # drones = []
-            # for i, host in enumerate(self.drone_hosts):
-            #     drone_id = f"drone_{i + 1}"
-            #     drone = Tello(host=host)
-            #     drones.append(drone)
-            #     self.drone_map[drone_id] = drone
-            #     self.logger.info(
-            #         f"Created drone instance {drone_id} for host {host}"
-            #     )
-            # # Create swarm from individual drones
-            # self.swarm = TelloSwarm(drones)
+        Sets up two drones using a specific WSL IP with different UDP ports
+        for control and state communication to avoid port conflicts.
+        """
+        # For WSL compatibility, use a specific IP and ports
+        wsl_ip = "172.28.3.205"
+        drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
+        drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+        drones = [drone1, drone2]
+        self.swarm = TelloSwarm(drones)
 
-            # For WSL compatibility, use a specific IP and ports
-            wsl_ip = "172.28.3.205"
-            drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-            drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
-            drones = [drone1, drone2]
-            self.swarm = TelloSwarm(drones)
+        # Update drone map for WSL setup
+        self.drone_map["drone_1"] = drone1
+        self.drone_map["drone_2"] = drone2
 
-            # Update drone map for WSL setup
-            self.drone_map["drone_1"] = drone1
-            self.drone_map["drone_2"] = drone2
-
-            self.logger.info(f"TelloSwarm created with {len(drones)} drones")
-
-        except Exception as e:
-            self.logger.error(f"Failed to setup swarm: {e}")
-            raise
+        self.logger.info(f"TelloSwarm created with {len(drones)} drones")
 
     def connect_swarm(self) -> ActionResult:
         """
@@ -217,31 +218,25 @@ class ActionExecutor:
             )
 
     def _parse_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Parse IoT message to extract action data"""
-        try:
-            # Handle different message formats
-            if "toolName" in message:
-                tool_name = message["toolName"]
-                if isinstance(tool_name, str):
-                    return json.loads(tool_name)
-                return tool_name
+        """Parse IoT message to extract action data
 
-            # Direct action format - support both DroneID and droneID
-            if ("DroneID" in message or "droneID" in message) and "action" in message:
-                # Normalize to lowercase droneID for consistency
-                normalized_message = message.copy()
-                if "DroneID" in message:
-                    normalized_message["droneID"] = message["DroneID"]
-                    if "DroneID" in normalized_message:
-                        del normalized_message["DroneID"]
-                return normalized_message
+        Supports the direct message format:
+        {"droneID": "drone_1", "action": "takeoff", "parameters": {...}}
+
+        Args:
+            message: Raw IoT message dictionary
+
+        Returns:
+            Parsed action data dictionary or None if parsing fails
+        """
+        try:
+            # Direct action format from MCP server
+            if "droneID" in message and "action" in message:
+                return message
 
             self.logger.warning(f"Unrecognized message format: {message}")
             return None
 
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Failed to parse JSON in message: {e}")
-            return None
         except Exception as e:
             self.logger.error(f"Failed to parse message: {e}")
             return None
@@ -288,7 +283,19 @@ class ActionExecutor:
 
     def _safe_execute_command(self, target, action: str,
                               parameters: Dict[str, Any]) -> ActionResult:
-        """Safely execute command with error handling"""
+        """Safely execute command with error handling and action mapping
+
+        Handles action translation and parameter mapping for drone commands.
+        Supports both legacy action names and MCP server compatible actions.
+
+        Args:
+            target: Drone or swarm object to execute command on
+            action: Action name (e.g., "takeoff", "flip", "up", "cw")
+            parameters: Action parameters dictionary
+
+        Returns:
+            ActionResult indicating success/failure and details
+        """
 
         # Handle generic "flip" action by mapping direction to specific flip
         if action == "flip" and "direction" in parameters:
@@ -404,29 +411,18 @@ class ActionExecutor:
         if not self.swarm:
             return
 
-        try:
-            for i, tello in enumerate(self.swarm.tellos):
-                try:
-                    battery = tello.get_battery()
-                    drone_id = f"drone_{i + 1}"
-                    self.logger.info(f"{drone_id} battery: {battery}%")
+        for i, tello in enumerate(self.swarm.tellos):
+            try:
+                battery = tello.get_battery()
+                drone_id = f"drone_{i + 1}"
+                self.logger.info(f"{drone_id} battery: {battery}%")
 
-                    if battery < 20:
-                        self.logger.warning(
-                            f"{drone_id} battery critically low: {battery}%"
-                        )
-                    elif battery < 50:
-                        self.logger.warning(
-                            f"{drone_id} battery low: {battery}%"
-                        )
-
-                except Exception as e:
-                    self.logger.error(
-                        f"Could not get battery for drone_{i + 1}: {e}"
-                    )
-
-        except Exception as e:
-            self.logger.error(f"Error checking battery levels: {e}")
+                if battery < 20:
+                    self.logger.warning(f"{drone_id} battery critically low: {battery}%")
+                elif battery < 50:
+                    self.logger.warning(f"{drone_id} battery low: {battery}%")
+            except Exception as e:
+                self.logger.error(f"Could not get battery for drone_{i + 1}: {e}")
 
     def get_status(self) -> Dict[str, Any]:
         """Get current status of the executor and swarm"""
@@ -438,20 +434,15 @@ class ActionExecutor:
         }
 
         if self.connected and self.swarm:
-            try:
-                # Get battery levels
-                batteries = {}
-                for i, tello in enumerate(self.swarm.tellos):
-                    try:
-                        drone_id = f"drone_{i + 1}"
-                        batteries[drone_id] = tello.get_battery()
-                    except Exception as e:
-                        batteries[drone_id] = f"Error: {e}"
+            batteries = {}
+            for i, tello in enumerate(self.swarm.tellos):
+                try:
+                    drone_id = f"drone_{i + 1}"
+                    batteries[drone_id] = tello.get_battery()
+                except Exception as e:
+                    batteries[drone_id] = f"Error: {e}"
 
-                status["batteries"] = batteries
-
-            except Exception as e:
-                status["status_error"] = str(e)
+            status["batteries"] = batteries
 
         return status
 
@@ -471,54 +462,31 @@ class ActionExecutor:
                 message="Swarm not initialized for emergency stop"
             )
 
-        try:
-            # Try emergency command for each drone
-            for i, tello in enumerate(self.swarm.tellos):
-                try:
-                    drone_id = f"drone_{i + 1}"
-                    self.logger.info(f"Emergency stop for {drone_id}")
-                    tello.emergency()
-                except Exception as e:
-                    self.logger.error(
-                        f"Emergency command failed for drone_{i + 1}: {e}"
-                    )
-                    try:
-                        tello.land()
-                    except Exception as land_e:
-                        self.logger.error(
-                            f"Land command also failed for drone_{i + 1}: "
-                            f"{land_e}"
-                        )
-
-            # End connection
+        # Try emergency command for each drone
+        for i, tello in enumerate(self.swarm.tellos):
             try:
-                self.swarm.end()
-                self.connected = False
+                drone_id = f"drone_{i + 1}"
+                self.logger.info(f"Emergency stop for {drone_id}")
+                tello.emergency()
             except Exception as e:
-                self.logger.error(
-                    f"Failed to end connection during emergency stop: {e}"
-                )
+                self.logger.error(f"Emergency command failed for drone_{i + 1}: {e}")
 
-            return ActionResult(
-                status=ActionStatus.SUCCESS,
-                message="Emergency stop completed"
-            )
-
+        # End connection
+        try:
+            self.swarm.end()
+            self.connected = False
         except Exception as e:
-            self.logger.error(f"Emergency stop failed: {e}")
-            return ActionResult(
-                status=ActionStatus.FAILED,
-                message="Emergency stop failed",
-                error_details=str(e)
-            )
+            self.logger.error(f"Failed to end connection during emergency stop: {e}")
+
+        return ActionResult(
+            status=ActionStatus.SUCCESS,
+            message="Emergency stop completed"
+        )
 
     def __del__(self):
         """Cleanup on destruction"""
         if hasattr(self, 'connected') and self.connected:
-            try:
-                self.disconnect_swarm()
-            except Exception:
-                pass
+            self.disconnect_swarm()
 
 
 # Example usage and testing
@@ -529,7 +497,7 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
 
-    # Create executor
+    # Create executor with WSL configuration
     executor = ActionExecutor()
 
     # Test connection
@@ -543,19 +511,29 @@ if __name__ == "__main__":
         status = executor.get_status()
         print(f"Status: {json.dumps(status, indent=2)}")
 
-        # Test action execution
-        print("\nTesting action execution...")
+        # Test MCP-compatible action execution
+        print("\nTesting MCP format action execution...")
         test_message = {
-            "toolName": json.dumps({
-                "DroneID": "drone_1",
-                "action": "rotate_clockwise",
-                "parameters": {"degrees": 90}
-            })
+            "droneID": "drone_1",
+            "action": "cw",
+            "parameters": {"x": 90}
         }
 
         action_result = executor.execute_action(test_message)
         print(f"Action result: {action_result.status.value} - "
               f"{action_result.message}")
+
+        # Test another MCP action format
+        print("\nTesting movement action...")
+        move_message = {
+            "droneID": "drone_1",
+            "action": "up",
+            "parameters": {"x": 50}
+        }
+
+        move_result = executor.execute_action(move_message)
+        print(f"Move result: {move_result.status.value} - "
+              f"{move_result.message}")
 
         # Disconnect
         print("\nDisconnecting...")
