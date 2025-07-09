@@ -1,8 +1,11 @@
+# Windows-specific settings for IoT client
+# This file contains Windows-optimized configuration values
+
 robot_name: "drone_1"
 input_topic: "{robot_name}/topic"
-base_path: "certificates"
-input_cert: "{base_path}/{robot_name}/{robot_name}.cert.pem"
-input_key: "{base_path}/{robot_name}/{robot_name}.private.key"
+base_path: "certifications"
+input_cert: "{base_path}\\{robot_name}\\{robot_name}.cert.pem"
+input_key: "{base_path}\\{robot_name}\\{robot_name}.private.key"
 aws_access_key_id: ""
 aws_secret_access_key: ""
 input_ca: "AmazonRootCA1.pem"

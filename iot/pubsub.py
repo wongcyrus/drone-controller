@@ -63,33 +63,20 @@ class PubSubClient:
                 publish_packet.payload,
             )
             try:
-                payload = json.loads(publish_packet.payload)
+                # Decode bytes to string before parsing JSON
+                payload_str = publish_packet.payload.decode('utf-8')
+                print(f"Raw payload string: {payload_str}")
 
-                # Handle multiple toolcall formats for backwards compatibility
-                toolcall = payload.get("toolcall")
+                # First try to parse the outer JSON
+                try:
+                    payload = json.loads(payload_str)
+                    print(f"Received payload: {payload}")
+                    self.executor.execute_action(payload)
+                except json.JSONDecodeError as e:
+                    logging.error(f"Failed to parse outer JSON: {e}")
+                    logging.error(f"Raw payload: {payload_str}")
+                    return
 
-                if isinstance(toolcall, str):
-                    # Simple format: {"toolcall": "takeoff"}
-                    self.executor.add_action_to_queue(toolcall)
-                    logging.info(f"Added simple action to queue: {toolcall}")
-
-                elif isinstance(toolcall, dict) and toolcall.get("name"):
-                    # Enhanced format: {"toolcall": {"name": "takeoff", "drone_ids": [0,1]}}
-                    action_name = toolcall["name"]
-                    drone_ids = toolcall.get("drone_ids", "all")
-                    self.executor.add_action_to_queue(action_name, drone_ids)
-                    logging.info(f"Added enhanced action to queue: {action_name}, drones: {drone_ids}")
-
-                elif "action" in payload and payload["action"].get("name"):
-                    # Full AWS IoT schema format
-                    action = payload["action"]
-                    action_name = action["name"]
-                    drone_ids = payload.get("target_drones", "all")
-                    self.executor.add_action_to_queue(action_name, drone_ids)
-                    logging.info(f"Added AWS IoT action to queue: {action_name}, drones: {drone_ids}")
-
-                else:
-                    logging.warning("No valid action specified in the payload")
             except json.JSONDecodeError:
                 logging.error("Invalid JSON payload received")
         except Exception as e:
@@ -209,7 +196,9 @@ class PubSubClient:
         logging.info("Stopping Client")
         if self.client:
             self.client.stop()
-        self.executor.stop()
+        # Disconnect the executor instead of calling stop()
+        if hasattr(self.executor, 'disconnect_swarm'):
+            self.executor.disconnect_swarm()
         try:
             self.future_stopped.result(TIMEOUT)
         except Exception as e:
@@ -261,25 +250,10 @@ def main():
         print("Settings loaded successfully:", json.dumps(settings, indent=2))
 
         # Try Tello executor first, fallback to simulator if not available
-        try:
-            executor = ActionExecutor(
-                robot_name,
-                settings.get("simulator_endpoint", ""),
-                settings.get("session_key", ""),
-                executor_type="tello"
-            )
-            logging.info("Using Tello executor")
-        except ImportError as e:
-            logging.warning(
-                "Tello support not available, falling back to simulator: %s", e
-            )
-            executor = ActionExecutor(
-                robot_name,
-                settings.get("simulator_endpoint", ""),
-                settings.get("session_key", ""),
-                executor_type="simulator"
-            )
-            logging.info("Using simulator executor")
+
+        executor = ActionExecutor()
+        logging.info("Using Tello executor")
+
         client = PubSubClient(settings, executor)
         client.run()
     except Exception as e:
