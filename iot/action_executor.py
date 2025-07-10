@@ -25,9 +25,11 @@ import logging
 import threading
 import sys
 import os
-from typing import Dict, Any, Optional, List
+import time
+from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
 from enum import Enum
+import time
 
 # Add parent directory to path to import djitellopy
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,13 +52,14 @@ class ActionResult:
     message: str
     drone_id: Optional[str] = None
     error_details: Optional[str] = None
+    execution_time: Optional[float] = None
 
 
 class ActionExecutor:
     """Handles Tello drone swarm actions from IoT messages"""
 
     def __init__(self,
-                 drone_hosts: List[str] = None):
+                 drone_hosts: Optional[List[str]] = None):
         """
         Initialize ActionExecutor with drone hosts
 
@@ -71,19 +74,15 @@ class ActionExecutor:
         self.connected = False
         self.connection_lock = threading.Lock()
 
-<<<<<<< HEAD
-        # Keepalive related attributes
-        self.keepalive_thread: Optional[threading.Thread] = None
-        self.keepalive_interval = 10  # seconds
+        # Initialize keepalive-related attributes
+        self.keepalive_thread = None
         self.stop_keepalive = threading.Event()
-        self.last_action_time = 0.0  # Track last action timestamp
-        self.action_lock = threading.Lock()  # Lock for thread-safe timestamp updates
+        self.keepalive_interval = 14  # seconds
+        self.action_lock = threading.Lock()
+        self.last_action_time = time.time()
 
-        # Default drone hosts
-=======
         # Note: drone_hosts parameter is kept for future compatibility
         # Currently using WSL-specific configuration regardless of this parameter
->>>>>>> abdba2f0508707725c1ab3b50cfc2ed7a3e083e6
         if drone_hosts is None:
             drone_hosts = ["192.168.137.21", "192.168.137.22"]  # Legacy default
 
@@ -93,40 +92,25 @@ class ActionExecutor:
         self.setup_swarm()
 
     def setup_swarm(self):
-<<<<<<< HEAD
-        """Initialize the TelloSwarm with configured drone hosts"""
-        try:
-            # Create individual Tello instances
-            drones = []
-            for i, host in enumerate(self.drone_hosts):
-                drone_id = f"drone_{i + 1}"
-                drone = Tello(host=host)
-                drones.append(drone)
-                self.drone_map[drone_id] = drone
-                self.logger.info(
-                    f"Created drone instance {drone_id} for host {host}"
-                )
-            # Create swarm from individual drones
-            self.swarm = TelloSwarm(drones)
-
-            # For WSL compatibility, use a specific IP and ports
-            # wsl_ip = "172.28.3.205"
-            # drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-            # drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
-            # self.swarm = TelloSwarm([drone1, drone2])
-=======
         """Initialize the TelloSwarm with WSL-compatible configuration
 
         Sets up two drones using a specific WSL IP with different UDP ports
         for control and state communication to avoid port conflicts.
         """
         # For WSL compatibility, use a specific IP and ports
-        wsl_ip = "172.28.3.205"
-        drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-        drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
-        drones = [drone1, drone2]
+        WSL = False
+        if WSL:
+            wsl_ip = "172.28.3.205"
+            drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
+            drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+            drones = [drone1, drone2]
+        else:
+            # Real drone
+            drone1 = Tello(host=self.drone_hosts[0])
+            drone2 = Tello(host=self.drone_hosts[1])
+            drones = [drone1, drone2]
+
         self.swarm = TelloSwarm(drones)
->>>>>>> abdba2f0508707725c1ab3b50cfc2ed7a3e083e6
 
         # Update drone map for WSL setup
         self.drone_map["drone_1"] = drone1
@@ -149,23 +133,22 @@ class ActionExecutor:
                 )
 
             try:
+                start_time = time.time()
                 self.logger.info("Connecting to drone swarm...")
-                self.swarm.connect()
-                self.connected = True
+                if self.swarm:
+                    self.swarm.connect()
+                    self.connected = True
 
-                # Log battery levels
-                self._log_battery_levels()
+                    # Log battery levels
+                    self._log_battery_levels()
 
-<<<<<<< HEAD
-                # Start keepalive thread
-                self._start_keepalive()
+                    # Start keepalive thread
+                    self._start_keepalive()
 
-                self.logger.info(
-                    f"Successfully connected to swarm in {execution_time:.2f}s"
-                )
-=======
-                self.logger.info("Successfully connected to swarm")
->>>>>>> abdba2f0508707725c1ab3b50cfc2ed7a3e083e6
+                    execution_time = time.time() - start_time
+                    self.logger.info(
+                        f"Successfully connected to swarm in {execution_time:.2f}s"
+                    )
                 return ActionResult(
                     status=ActionStatus.SUCCESS,
                     message="Successfully connected to swarm"
@@ -287,9 +270,14 @@ class ActionExecutor:
             self.logger.error(f"Failed to parse message: {e}")
             return None
 
-    def _execute_drone_action(self, drone_id: str, action: str,
+    def _execute_drone_action(self, drone_id: Optional[str], action: Optional[str],
                               parameters: Dict[str, Any]) -> ActionResult:
         """Execute action on specific drone or swarm"""
+        if not action:
+            return ActionResult(
+                status=ActionStatus.INVALID_COMMAND,
+                message="No action specified"
+            )
         try:
             # Determine target (individual drone or swarm)
             if drone_id == "all" or drone_id is None:
@@ -306,18 +294,16 @@ class ActionExecutor:
                         drone_id=drone_id
                     )
 
+            start_time = time.time()
             # Execute the action
             result = self._safe_execute_command(target, action, parameters)
             result.drone_id = drone_id
-<<<<<<< HEAD
             execution_time = time.time() - start_time
             result.execution_time = execution_time
 
             # Update last action timestamp
             with self.action_lock:
-                self.last_action_time = time.time()
-=======
->>>>>>> abdba2f0508707725c1ab3b50cfc2ed7a3e083e6
+                self.last_action_time = start_time
 
             self.logger.info(
                 f"Action {action} on {target_name} completed: "
@@ -351,51 +337,6 @@ class ActionExecutor:
         Returns:
             ActionResult indicating success/failure and details
         """
-
-        # Check battery levels before executing commands
-        try:
-            if isinstance(target, Tello):
-                # Single drone check
-                battery = target.get_battery()
-                if battery < 10:
-                    return ActionResult(
-                        status=ActionStatus.FAILED,
-                        message=f"Cannot execute {action}: Battery critically low ({battery}%)",
-                    )
-                elif battery < 20 and action == "takeoff":
-                    return ActionResult(
-                        status=ActionStatus.FAILED,
-                        message=f"Cannot takeoff: Battery too low ({battery}%). Minimum 20% required.",
-                    )
-            elif hasattr(target, 'tellos'):
-                # Swarm check
-                for i, tello in enumerate(target.tellos):
-                    try:
-                        battery = tello.get_battery()
-                        if battery < 10:
-                            return ActionResult(
-                                status=ActionStatus.FAILED,
-                                message=f"Cannot execute {action}: drone_{i+1} battery critically low ({battery}%)",
-                            )
-                        elif battery < 20 and action == "takeoff":
-                            return ActionResult(
-                                status=ActionStatus.FAILED,
-                                message=f"Cannot takeoff: drone_{i+1} battery too low ({battery}%). Minimum 20% required.",
-                            )
-                    except Exception as e:
-                        self.logger.error(f"Failed to check battery for drone_{i+1}: {e}")
-                        return ActionResult(
-                            status=ActionStatus.FAILED,
-                            message=f"Failed to check battery for drone_{i+1}",
-                            error_details=str(e)
-                        )
-        except Exception as e:
-            self.logger.error(f"Failed to check battery levels: {e}")
-            return ActionResult(
-                status=ActionStatus.FAILED,
-                message="Failed to check battery levels",
-                error_details=str(e)
-            )
 
         # Handle generic "flip" action by mapping direction to specific flip
         if action == "flip" and "direction" in parameters:
@@ -494,7 +435,13 @@ class ActionExecutor:
         # Execute command
         try:
             method = getattr(target, method_name)
-            method(*args)
+
+            # If targeting swarm, always use parallel execution for all actions
+            if isinstance(target, TelloSwarm):
+                target.parallel(lambda i, tello: getattr(tello, method_name)(*args))
+            else:
+                method(*args)
+
             return ActionResult(
                 status=ActionStatus.SUCCESS,
                 message=f"Successfully executed {action}"
@@ -543,18 +490,7 @@ class ActionExecutor:
 
             if self.connected and self.swarm:
                 try:
-                    for i, tello in enumerate(self.swarm.tellos):
-                        try:
-                            # Get battery level as a keepalive signal
-                            battery = tello.get_battery()
-                            self.logger.debug(
-                                f"Keepalive - drone_{i + 1} battery: {battery}%"
-                            )
-                            tello.send_keepalive()
-                        except Exception as e:
-                            self.logger.warning(
-                                f"Keepalive failed for drone_{i + 1}: {e}"
-                            )
+                    self.swarm.parallel(lambda i,t: t.send_keepalive())
                 except Exception as e:
                     self.logger.error(f"Error in keepalive thread: {e}")
 
@@ -641,17 +577,12 @@ class ActionExecutor:
 
     def __del__(self):
         """Cleanup on destruction"""
-<<<<<<< HEAD
         try:
             self._stop_keepalive()
             if hasattr(self, 'connected') and self.connected:
                 self.disconnect_swarm()
         except Exception:
             pass
-=======
-        if hasattr(self, 'connected') and self.connected:
-            self.disconnect_swarm()
->>>>>>> abdba2f0508707725c1ab3b50cfc2ed7a3e083e6
 
 
 # Example usage and testing

@@ -608,7 +608,7 @@ class Tello:
     def send_keepalive(self):
         """Send a keepalive packet to prevent the drone from landing after 15s
         """
-        self.send_control_command("keepalive")
+        self.send_command_without_return("keepalive")
 
     def turn_motor_on(self):
         """Turn on motors without flying (mainly for cooling)
