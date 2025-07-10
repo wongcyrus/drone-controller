@@ -26,10 +26,9 @@ import threading
 import sys
 import os
 import time
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
-import time
 
 # Add parent directory to path to import djitellopy
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -58,14 +57,11 @@ class ActionResult:
 class ActionExecutor:
     """Handles Tello drone swarm actions from IoT messages"""
 
-    def __init__(self,
-                 drone_hosts: Optional[List[str]] = None):
+    def __init__(self):
         """
-        Initialize ActionExecutor with drone hosts
+        Initialize ActionExecutor
 
-        Args:
-            drone_hosts: List of drone IP addresses. Defaults to WSL-compatible configuration.
-                        Note: Currently configured for WSL environment with specific IP and ports.
+        Uses WSL-compatible configuration with specific IP and ports.
         """
         self.logger = logging.getLogger(__name__)
 
@@ -83,10 +79,6 @@ class ActionExecutor:
 
         # Note: drone_hosts parameter is kept for future compatibility
         # Currently using WSL-specific configuration regardless of this parameter
-        if drone_hosts is None:
-            drone_hosts = ["192.168.137.21", "192.168.137.22"]
-
-        self.drone_hosts = drone_hosts
 
         # Setup swarm
         self.setup_swarm()
@@ -106,13 +98,13 @@ class ActionExecutor:
             drones = [drone1, drone2]
         else:
             # Real drone
-            drone1 = Tello(host=self.drone_hosts[0])
-            drone2 = Tello(host=self.drone_hosts[1])
+            drone_hosts = ["192.168.137.21", "192.168.137.22"]
+            drone1 = Tello(host=drone_hosts[0])
+            drone2 = Tello(host=drone_hosts[1])
             drones = [drone1, drone2]
 
         self.swarm = TelloSwarm(drones)
 
-        # Update drone map for WSL setup
         self.drone_map["drone_1"] = drone1
         self.drone_map["drone_2"] = drone2
 
@@ -521,8 +513,7 @@ class ActionExecutor:
         status = {
             "connected": self.connected,
             "swarm_initialized": self.swarm is not None,
-            "drone_count": len(self.drone_hosts),
-            "drone_hosts": self.drone_hosts
+            "drone_count": len(self.drone_map),
         }
 
         if self.connected and self.swarm:
