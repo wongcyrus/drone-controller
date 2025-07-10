@@ -57,6 +57,11 @@ class ActionResult:
 class ActionExecutor:
     """Handles Tello drone swarm actions from IoT messages"""
 
+    # Command timeout and retry settings
+    COMMAND_TIMEOUT = 5  # seconds
+    MAX_RETRIES = 3
+    RETRY_DELAY = 0.5  # seconds
+
     def __init__(self):
         """
         Initialize ActionExecutor
@@ -272,6 +277,7 @@ class ActionExecutor:
             )
         try:
             # Determine target (individual drone or swarm)
+            drone_id = "all"
             if drone_id == "all" or drone_id is None:
                 target = self.swarm
                 target_name = "swarm"
@@ -312,6 +318,68 @@ class ActionExecutor:
                 message=f"Failed to execute {action}",
                 drone_id=drone_id,
                 error_details=str(e)
+            )
+
+    def _execute_with_timeout(self, tello, method_name, args):
+        """Execute a command on a single drone with timeout and retries"""
+        start_time = time.time()
+        last_error = None
+
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                if time.time() - start_time > self.COMMAND_TIMEOUT:
+                    return False, f"Command timed out after {self.COMMAND_TIMEOUT}s"
+
+                method = getattr(tello, method_name)
+                method(*args)
+                return True, None
+
+            except Exception as e:
+                last_error = str(e)
+                if attempt < self.MAX_RETRIES - 1:
+                    time.sleep(self.RETRY_DELAY)
+                    continue
+
+        return False, f"Command failed after {self.MAX_RETRIES} attempts: {last_error}"
+
+    def _execute_swarm_command(self, swarm, method_name, args):
+        """Execute command on swarm with individual drone failure handling"""
+        results = []
+        successful = False
+
+        def worker(i, tello):
+            try:
+                success, error = self._execute_with_timeout(tello, method_name, args)
+                results.append((i, success, error))
+                if success:
+                    nonlocal successful
+                    successful = True
+            except Exception as e:
+                results.append((i, False, str(e)))
+
+        # Execute commands in parallel
+        swarm.parallel(worker)
+
+        # Process results
+        failures = []
+        for i, success, error in results:
+            if not success:
+                failures.append(f"drone_{i+1}: {error}")
+
+        if not failures:
+            return ActionResult(
+                status=ActionStatus.SUCCESS,
+                message=f"Successfully executed on all drones"
+            )
+        elif successful:
+            return ActionResult(
+                status=ActionStatus.SUCCESS,
+                message=f"Executed successfully on some drones. Failures: {'; '.join(failures)}"
+            )
+        else:
+            return ActionResult(
+                status=ActionStatus.FAILED,
+                message=f"Failed on all drones: {'; '.join(failures)}"
             )
 
     def _safe_execute_command(self, target, action: str,
@@ -426,18 +494,23 @@ class ActionExecutor:
 
         # Execute command
         try:
-            method = getattr(target, method_name)
-
-            # If targeting swarm, always use parallel execution for all actions
             if isinstance(target, TelloSwarm):
-                target.parallel(lambda i, tello: getattr(tello, method_name)(*args))
+                print(f"Executing {action} on swarm with args: {args}")
+                return self._execute_swarm_command(target, method_name, args)
             else:
-                method(*args)
-
-            return ActionResult(
-                status=ActionStatus.SUCCESS,
-                message=f"Successfully executed {action}"
-            )
+                print(f"Executing {action} on drone {target.get_id()} with args: {args}")
+                success, error = self._execute_with_timeout(target, method_name, args)
+                if success:
+                    return ActionResult(
+                        status=ActionStatus.SUCCESS,
+                        message=f"Successfully executed {action}"
+                    )
+                else:
+                    return ActionResult(
+                        status=ActionStatus.FAILED,
+                        message=f"Failed to execute {action}",
+                        error_details=error
+                    )
         except Exception as e:
             return ActionResult(
                 status=ActionStatus.FAILED,
