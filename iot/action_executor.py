@@ -84,7 +84,7 @@ class ActionExecutor:
         # Note: drone_hosts parameter is kept for future compatibility
         # Currently using WSL-specific configuration regardless of this parameter
         if drone_hosts is None:
-            drone_hosts = ["192.168.137.21", "192.168.137.22"]  # Legacy default
+            drone_hosts = ["192.168.137.21", "192.168.137.22"]
 
         self.drone_hosts = drone_hosts
 
