@@ -1,4 +1,5 @@
 from djitellopy import TelloSwarm, Tello
+import time
 
 
 drone_hosts = ["192.168.137.21", "192.168.137.22"]  # Legacy default
@@ -15,7 +16,7 @@ swarm = TelloSwarm(drones)
 swarm.connect()
 
 swarm.takeoff()
-import time
+
 # Wait for drones to stabilize
 time.sleep(5)
 
