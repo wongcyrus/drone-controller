@@ -14,16 +14,17 @@ swarm = TelloSwarm(drones)
 
 # Connect to the swarm
 swarm.connect()
+# Print battery level for each drone in the swarm
+for i, tello in enumerate(swarm.tellos):
+    print(f"Drone {i+1} battery: {tello.get_battery()}%")
+# Send a command to all drones in the swarm
 
 swarm.takeoff()
 
 # Wait for drones to stabilize
 time.sleep(5)
 
-# Print battery level for each drone in the swarm
-for i, tello in enumerate(swarm.tellos):
-    print(f"Drone {i+1} battery: {tello.get_battery()}%")
-# Send a command to all drones in the swarm
+
 
 swarm.parallel(lambda i,t: t.send_keepalive())
 time.sleep(14)
