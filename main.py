@@ -344,10 +344,10 @@ def main():
 
             # Perform flips in all directions with safe commands
             flip_movements = [
-                {"command": "flip_forward", "description": "Flip forward", "wait_time": 5},
-                {"command": "flip_back", "description": "Flip back", "wait_time": 5},
-                {"command": "flip_left", "description": "Flip left", "wait_time": 5},
-                {"command": "flip_right", "description": "Flip right", "wait_time": 5}
+                {"command": "flip_forward", "description": "Flip forward", "wait_time": 10},
+                {"command": "flip_back", "description": "Flip back", "wait_time": 10},
+                {"command": "flip_left", "description": "Flip left", "wait_time": 10},
+                {"command": "flip_right", "description": "Flip right", "wait_time": 10}
             ]
 
             for movement in flip_movements:

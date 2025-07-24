@@ -103,7 +103,7 @@ class ActionExecutor:
             drones = [drone1, drone2]
         else:
             # Real drone
-            drone_hosts = ["192.168.137.21", "192.168.137.22"]
+            drone_hosts = ["192.168.137.31", "192.168.137.32"]
             drone1 = Tello(host=drone_hosts[0])
             drone2 = Tello(host=drone_hosts[1])
             drones = [drone1, drone2]
@@ -137,10 +137,10 @@ class ActionExecutor:
                     self.connected = True
 
                     # Log battery levels
-                    self._log_battery_levels()
+                    # self._log_battery_levels()
 
                     # Start keepalive thread
-                    self._start_keepalive()
+                    # self._start_keepalive()
 
                     execution_time = time.time() - start_time
                     self.logger.info(
@@ -556,6 +556,7 @@ class ActionExecutor:
             if self.connected and self.swarm:
                 try:
                     self.swarm.parallel(lambda i,t: t.send_keepalive())
+                    # print("Sending skippedkeepalive to all drones")
                 except Exception as e:
                     self.logger.error(f"Error in keepalive thread: {e}")
 
