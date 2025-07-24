@@ -5,15 +5,62 @@ This creates a GUI with an emergency stop button that sends stop commands direct
 """
 
 import tkinter as tk
-from tkinter import messagebox
 import threading
-import signal
 import sys
 import subprocess
-import time
 import os  # Added for process ID
-from djitellopy import Tello
-from djitellopy import TelloSwarm
+import socket
+
+
+def ascii_to_hex(ascii_str):
+    return ascii_str.encode().hex()
+
+def hex_to_ascii(hex_str):
+    try:
+        return bytes.fromhex(hex_str).decode()
+    except Exception:
+        return "<Invalid HEX>"
+
+
+class DroneClient:
+    def __init__(self, ip, port=8889):
+        self.ip = ip
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(1)
+        self.battery_check_active = False
+        self.led_active = False
+
+    def send_command(self, message):
+        try:
+            hex_data = ascii_to_hex(message)
+            self.sock.sendto(bytes.fromhex(hex_data), (self.ip, self.port))
+            data, _ = self.sock.recvfrom(4096)
+            return hex_to_ascii(data.hex())
+        except socket.timeout:
+            return None
+        except Exception as e:
+            print(f"Error sending command to {self.ip}: {e}")
+            return None
+
+    def emergency(self):
+        """Send emergency stop command"""
+        return self.send_command("emergency")
+
+    def land(self):
+        """Send land command"""
+        return self.send_command("land")
+
+    def stop(self):
+        """Send stop command"""
+        return self.send_command("stop")
+
+    def close(self):
+        """Close the socket connection"""
+        try:
+            self.sock.close()
+        except:
+            pass
 
 
 class EmergencyStopGUI:
@@ -36,6 +83,9 @@ class EmergencyStopGUI:
 
         # Track if emergency stop was triggered
         self.emergency_triggered = False
+
+        # Drone IPs
+        self.drone_ips = ['192.168.137.31', '192.168.137.32']
 
     def center_window(self):
         """Center the window on the screen"""
@@ -166,38 +216,53 @@ class EmergencyStopGUI:
         """Send direct emergency commands to drones"""
         print("Sending direct emergency commands to drones...")
 
-        try:
-            # Try to connect and send emergency command directly
+        drones = []
 
-
-
-
+        # Create drone clients for each IP
+        for ip in self.drone_ips:
             try:
-
-                drone1 = Tello(host="192.168.137.21")
-                drone2 = Tello(host="192.168.137.22")
-
-                # Create swarm from individual drones
-                swarm = TelloSwarm([drone1, drone2])
-                swarm.connect()
-                swarm.emergency()
-                print("Emergency command sent to all drones in swarm.")
-
-                # Also try land command as backup
-                try:
-                    swarm.land()
-                    print("Land command sent to all drones in swarm.")
-                except Exception as land_err:
-                    print(f"Land command failed for swarm: {land_err}")
-
-                swarm.end()
+                drone = DroneClient(ip)
+                # Test connection first
+                response = drone.send_command("command")
+                if response:
+                    drones.append(drone)
+                    print(f"Connected to drone at {ip}")
+                else:
+                    print(f"No response from drone at {ip}")
+                    drone.close()
             except Exception as e:
-                print(f"Could not send emergency to swarm: {e}")
+                print(f"Failed to connect to drone at {ip}: {e}")
 
-        except ImportError:
-            print("djitellopy not available, skipping direct drone commands")
-        except Exception as e:
-            print(f"Error sending drone commands: {e}")
+        if not drones:
+            print("No drones available for emergency stop!")
+            return
+
+        # Send emergency commands to all connected drones
+        for drone in drones:
+            try:
+                print(f"Sending emergency command to {drone.ip}...")
+                emergency_response = drone.emergency()
+                if emergency_response:
+                    print(f"Emergency response from {drone.ip}: {emergency_response}")
+                else:
+                    print(f"No emergency response from {drone.ip}, trying land command...")
+                    land_response = drone.land()
+                    if land_response:
+                        print(f"Land response from {drone.ip}: {land_response}")
+                    else:
+                        print(f"No response from {drone.ip}, trying stop command...")
+                        stop_response = drone.stop()
+                        if stop_response:
+                            print(f"Stop response from {drone.ip}: {stop_response}")
+                        else:
+                            print(f"No response from {drone.ip} for any command")
+
+            except Exception as e:
+                print(f"Error sending emergency command to {drone.ip}: {e}")
+            finally:
+                drone.close()
+
+        print("Emergency commands sent to all available drones.")
 
     def kill_drone_processes(self):
         """Kill drone-related processes as backup"""
@@ -218,8 +283,7 @@ class EmergencyStopGUI:
                 commands = [
                     ['pkill', '-f', f'(?!^{current_pid}$)main.py'],
                     ['pkill', '-f', f'(?!^{current_pid}$)drone'],
-                    ['pkill', '-f', f'(?!^{current_pid}$)tello'],
-                    ['pkill', '-f', f'(?!^{current_pid}$)djitellopy']
+                    ['pkill', '-f', f'(?!^{current_pid}$)tello']
                 ]
 
             for cmd in commands:
