@@ -35,6 +35,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from djitellopy import TelloSwarm, Tello
 
+WSL = True
 
 class ActionStatus(Enum):
     SUCCESS = "success"
@@ -95,11 +96,12 @@ class ActionExecutor:
         for control and state communication to avoid port conflicts.
         """
         # For WSL compatibility, use a specific IP and ports
-        WSL = False
+
         if WSL:
             wsl_ip = "172.28.3.205"
-            drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
-            drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+            # Match the simulator configuration: starts at port 8889 with sequential ports
+            drone1 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
+            drone2 = Tello(host=wsl_ip, control_udp=8891, state_udp=8892)
             drones = [drone1, drone2]
         else:
             # Real drone
@@ -520,7 +522,7 @@ class ActionExecutor:
 
     def _log_battery_levels(self):
         """Log battery levels for all drones"""
-        if not self.swarm:
+        if WSL or not self.swarm:
             return
 
         for i, tello in enumerate(self.swarm.tellos):
@@ -553,7 +555,7 @@ class ActionExecutor:
                     self.stop_keepalive.wait(wait_time)
                     continue
 
-            if self.connected and self.swarm:
+            if not WSL and self.connected and self.swarm:
                 try:
                     self.swarm.parallel(lambda i,t: t.send_keepalive())
                     # print("Sending skippedkeepalive to all drones")
@@ -582,26 +584,7 @@ class ActionExecutor:
             self.keepalive_thread = None
             self.logger.info("Stopped keepalive thread")
 
-    def get_status(self) -> Dict[str, Any]:
-        """Get current status of the executor and swarm"""
-        status = {
-            "connected": self.connected,
-            "swarm_initialized": self.swarm is not None,
-            "drone_count": len(self.drone_map),
-        }
 
-        if self.connected and self.swarm:
-            batteries = {}
-            for i, tello in enumerate(self.swarm.tellos):
-                try:
-                    drone_id = f"drone_{i + 1}"
-                    batteries[drone_id] = tello.get_battery()
-                except Exception as e:
-                    batteries[drone_id] = f"Error: {e}"
-
-            status["batteries"] = batteries
-
-        return status
 
     def emergency_stop(self) -> ActionResult:
         """Emergency stop for all drones"""
@@ -668,9 +651,7 @@ if __name__ == "__main__":
 
     if result.status == ActionStatus.SUCCESS:
         # Test status
-        print("\nGetting status...")
-        status = executor.get_status()
-        print(f"Status: {json.dumps(status, indent=2)}")
+
 
         # Test MCP-compatible action execution
         print("\nTesting MCP format action execution...")
