@@ -277,11 +277,11 @@ def main():
         # drone1 = Tello(host=wsl_ip, control_udp=8889, state_udp=8890)
         # drone2 = Tello(host=wsl_ip, control_udp=8890, state_udp=8891)
 
-        drone1 = Tello(host="192.168.137.21")
+        # drone1 = Tello(host="192.168.137.21")
         drone2 = Tello(host="192.168.137.22")
 
         # Create swarm from individual drones
-        swarm = TelloSwarm([drone1, drone2])
+        swarm = TelloSwarm([drone2])
 
         print("Connecting to swarm...")
 

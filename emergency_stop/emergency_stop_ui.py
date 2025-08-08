@@ -85,7 +85,7 @@ class EmergencyStopGUI:
         self.emergency_triggered = False
 
         # Drone IPs
-        self.drone_ips = ['192.168.137.31', '192.168.137.32']
+        self.drone_ips = ['192.168.137.21', '192.168.137.22']
 
     def center_window(self):
         """Center the window on the screen"""

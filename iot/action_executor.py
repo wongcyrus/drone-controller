@@ -35,7 +35,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from djitellopy import TelloSwarm, Tello
 
-WSL = True
+WSL = False
 
 class ActionStatus(Enum):
     SUCCESS = "success"
@@ -105,15 +105,15 @@ class ActionExecutor:
             drones = [drone1, drone2]
         else:
             # Real drone
-            drone_hosts = ["192.168.137.31", "192.168.137.32"]
+            drone_hosts = ["192.168.137.22"]
             drone1 = Tello(host=drone_hosts[0])
-            drone2 = Tello(host=drone_hosts[1])
-            drones = [drone1, drone2]
+            # drone2 = Tello(host=drone_hosts[1])
+            drones = [drone1]
 
         self.swarm = TelloSwarm(drones)
 
         self.drone_map["drone_1"] = drone1
-        self.drone_map["drone_2"] = drone2
+        # self.drone_map["drone_2"] = drone2
 
         self.logger.info(f"TelloSwarm created with {len(drones)} drones")
 
