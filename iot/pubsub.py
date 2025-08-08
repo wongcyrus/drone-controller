@@ -71,7 +71,18 @@ class PubSubClient:
                 try:
                     payload = json.loads(payload_str)
                     print(f"Received payload: {payload}")
-                    self.executor.execute_action(payload)
+
+                    # Execute action with error handling to prevent stopping message processing
+                    try:
+                        result = self.executor.execute_action(payload)
+                        if result.status.value != "success":
+                            logging.warning(f"Action execution result: {result.status.value} - {result.message}")
+                            if result.error_details:
+                                logging.warning(f"Error details: {result.error_details}")
+                    except Exception as exec_error:
+                        logging.error(f"Exception during action execution: {exec_error}")
+                        logging.error(f"Action execution failed but continuing message processing...")
+
                 except json.JSONDecodeError as e:
                     logging.error(f"Failed to parse outer JSON: {e}")
                     logging.error(f"Raw payload: {payload_str}")
@@ -81,6 +92,7 @@ class PubSubClient:
                 logging.error("Invalid JSON payload received")
         except Exception as e:
             logging.error("Exception in on_publish_received: %s", e)
+            logging.error("Continuing to process future messages...")
 
     def on_lifecycle_stopped(self, lifecycle_stopped_data: mqtt5.LifecycleStoppedData):
         logging.info("Lifecycle Stopped")

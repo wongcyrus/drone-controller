@@ -58,10 +58,8 @@ class ActionResult:
 class ActionExecutor:
     """Handles Tello drone swarm actions from IoT messages"""
 
-    # Command timeout and retry settings
+    # Command timeout settings (no retries)
     COMMAND_TIMEOUT = 5  # seconds
-    MAX_RETRIES = 3
-    RETRY_DELAY = 0.5  # seconds
 
     def __init__(self):
         """
@@ -88,6 +86,52 @@ class ActionExecutor:
 
         # Setup swarm
         self.setup_swarm()
+
+    def _is_connection_error(self, error: Exception) -> bool:
+        """
+        Check if an error is related to connection issues
+
+        Args:
+            error: Exception to check
+
+        Returns:
+            True if the error is connection-related
+        """
+        error_str = str(error).lower()
+        error_type = str(type(error))
+
+        connection_indicators = [
+            "telloexception",
+            "timeout",
+            "did not receive a response",
+            "aborting command",
+            "unsuccessful",
+            "connection",
+            "network",
+            "socket"
+        ]
+
+        return any(indicator in error_str or indicator in error_type.lower()
+                  for indicator in connection_indicators)
+
+    def _reset_drone_state(self, drone):
+        """
+        Reset drone connection state after failed connection
+
+        Args:
+            drone: Tello drone object to reset
+        """
+        try:
+            # Reset internal connection state
+            if hasattr(drone, 'is_connected'):
+                drone.is_connected = False
+            if hasattr(drone, 'stream_on'):
+                drone.stream_on = False
+            if hasattr(drone, 'response_thread'):
+                if drone.response_thread and drone.response_thread.is_alive():
+                    drone.response_thread = None
+        except Exception as e:
+            self.logger.warning(f"Error resetting drone state: {e}")
 
     def setup_swarm(self):
         """Initialize the TelloSwarm with WSL-compatible configuration
@@ -135,19 +179,50 @@ class ActionExecutor:
                 start_time = time.time()
                 self.logger.info("Connecting to drone swarm...")
                 if self.swarm:
-                    self.swarm.connect()
-                    self.connected = True
+                    # Instead of using swarm.connect() which can throw unhandled thread exceptions,
+                    # connect to individual drones to have better error control
+                    connection_errors = []
+                    successful_connections = 0
 
-                    # Log battery levels
-                    # self._log_battery_levels()
+                    for drone_id, drone in self.drone_map.items():
+                        try:
+                            self.logger.info(f"Connecting to {drone_id}...")
+                            drone.connect()
+                            successful_connections += 1
+                            self.logger.info(f"Successfully connected to {drone_id}")
 
-                    # Start keepalive thread
-                    # self._start_keepalive()
+                        except Exception as drone_error:
+                            error_msg = f"{drone_id}: {str(drone_error)}"
+                            connection_errors.append(error_msg)
+                            self.logger.error(f"Failed to connect to {drone_id}: {drone_error}")
+                            # Ensure drone state is reset after failed connection
+                            self._reset_drone_state(drone)
 
-                    execution_time = time.time() - start_time
-                    self.logger.info(
-                        f"Successfully connected to swarm in {execution_time:.2f}s"
-                    )
+                    # If at least one drone connected successfully, consider it a partial success
+                    if successful_connections > 0:
+                        self.connected = True
+                        execution_time = time.time() - start_time
+
+                        if connection_errors:
+                            message = f"Partially connected ({successful_connections}/{len(self.drone_map)} drones). Errors: {'; '.join(connection_errors)}"
+                            self.logger.warning(message)
+                        else:
+                            message = f"Successfully connected to all {successful_connections} drones"
+                            self.logger.info(f"Successfully connected to swarm in {execution_time:.2f}s")
+
+                        return ActionResult(
+                            status=ActionStatus.SUCCESS,
+                            message=message
+                        )
+                    else:
+                        # No drones connected successfully
+                        self.connected = False
+                        error_details = '; '.join(connection_errors) if connection_errors else "Unknown connection error"
+                        return ActionResult(
+                            status=ActionStatus.FAILED,
+                            message="Failed to connect to any drones",
+                            error_details=error_details
+                        )
                 return ActionResult(
                     status=ActionStatus.SUCCESS,
                     message="Successfully connected to swarm"
@@ -155,6 +230,8 @@ class ActionExecutor:
 
             except Exception as e:
                 self.logger.error(f"Failed to connect to swarm: {e}")
+                # Make sure connected flag is false on failure
+                self.connected = False
                 return ActionResult(
                     status=ActionStatus.FAILED,
                     message="Failed to connect to swarm",
@@ -228,14 +305,30 @@ class ActionExecutor:
                 f"with parameters: {parameters}"
             )
 
-            # Check if swarm is connected
+            # Check if swarm is connected, try to connect once
             if not self.connected:
+                self.logger.info("Drone not connected, attempting to connect...")
                 connect_result = self.connect_swarm()
                 if connect_result.status != ActionStatus.SUCCESS:
+                    self.logger.error(f"Connection failed: {connect_result.message}")
                     return connect_result
 
             # Execute the action
-            return self._execute_drone_action(drone_id, action, parameters)
+            try:
+                result = self._execute_drone_action(drone_id, action, parameters)
+                return result
+            except Exception as action_error:
+                self.logger.error(f"Action execution failed: {action_error}")
+                # If it's a connection-related error, reset connection status
+                if self._is_connection_error(action_error):
+                    self.logger.warning("Connection issue detected, marking as disconnected")
+                    self.connected = False
+                # Return the error but continue processing future messages
+                return ActionResult(
+                    status=ActionStatus.FAILED,
+                    message=f"Action execution failed: {action_error}",
+                    error_details=str(action_error)
+                )
 
         except Exception as e:
             self.logger.error(f"Error executing action: {e}")
@@ -278,11 +371,48 @@ class ActionExecutor:
                 message="No action specified"
             )
         try:
-            # Determine target (individual drone or swarm)
-            drone_id = "all"
+            # Determine target (individual drone or individual execution on all drones)
             if drone_id == "all" or drone_id is None:
-                target = self.swarm
-                target_name = "swarm"
+                # Execute on all drones individually to avoid swarm.parallel() thread issues
+                target_name = "all drones"
+                start_time = time.time()
+
+                results = []
+                for individual_drone_id, drone in self.drone_map.items():
+                    try:
+                        result = self._safe_execute_command(drone, action, parameters)
+                        results.append((individual_drone_id, result))
+                        self.logger.info(f"Action {action} on {individual_drone_id}: {result.status.value}")
+                    except Exception as drone_error:
+                        self.logger.error(f"Error executing {action} on {individual_drone_id}: {drone_error}")
+                        results.append((individual_drone_id, ActionResult(
+                            status=ActionStatus.FAILED,
+                            message=f"Failed to execute {action}",
+                            error_details=str(drone_error)
+                        )))
+
+                # Aggregate results
+                successful_count = sum(1 for _, result in results if result.status == ActionStatus.SUCCESS)
+                total_count = len(results)
+
+                if successful_count == total_count:
+                    final_result = ActionResult(
+                        status=ActionStatus.SUCCESS,
+                        message=f"Successfully executed {action} on all {total_count} drones"
+                    )
+                elif successful_count > 0:
+                    failures = [f"{drone_id}: {result.message}" for drone_id, result in results if result.status != ActionStatus.SUCCESS]
+                    final_result = ActionResult(
+                        status=ActionStatus.SUCCESS,
+                        message=f"Executed {action} on {successful_count}/{total_count} drones. Failures: {'; '.join(failures)}"
+                    )
+                else:
+                    failures = [f"{drone_id}: {result.message}" for drone_id, result in results]
+                    final_result = ActionResult(
+                        status=ActionStatus.FAILED,
+                        message=f"Failed to execute {action} on all drones: {'; '.join(failures)}"
+                    )
+
             else:
                 target = self.drone_map.get(drone_id)
                 target_name = drone_id
@@ -294,12 +424,13 @@ class ActionExecutor:
                         drone_id=drone_id
                     )
 
-            start_time = time.time()
-            # Execute the action
-            result = self._safe_execute_command(target, action, parameters)
-            result.drone_id = drone_id
+                start_time = time.time()
+                # Execute the action on individual drone
+                final_result = self._safe_execute_command(target, action, parameters)
+
+            final_result.drone_id = drone_id
             execution_time = time.time() - start_time
-            result.execution_time = execution_time
+            final_result.execution_time = execution_time
 
             # Update last action timestamp
             with self.action_lock:
@@ -307,9 +438,9 @@ class ActionExecutor:
 
             self.logger.info(
                 f"Action {action} on {target_name} completed: "
-                f"{result.status.value}"
+                f"{final_result.status.value}"
             )
-            return result
+            return final_result
 
         except Exception as e:
             self.logger.error(
@@ -323,26 +454,19 @@ class ActionExecutor:
             )
 
     def _execute_with_timeout(self, tello, method_name, args):
-        """Execute a command on a single drone with timeout and retries"""
+        """Execute a command on a single drone with timeout (no retries)"""
         start_time = time.time()
-        last_error = None
 
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                if time.time() - start_time > self.COMMAND_TIMEOUT:
-                    return False, f"Command timed out after {self.COMMAND_TIMEOUT}s"
+        try:
+            if time.time() - start_time > self.COMMAND_TIMEOUT:
+                return False, f"Command timed out after {self.COMMAND_TIMEOUT}s"
 
-                method = getattr(tello, method_name)
-                method(*args)
-                return True, None
+            method = getattr(tello, method_name)
+            method(*args)
+            return True, None
 
-            except Exception as e:
-                last_error = str(e)
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-                    continue
-
-        return False, f"Command failed after {self.MAX_RETRIES} attempts: {last_error}"
+        except Exception as e:
+            return False, str(e)
 
     def _execute_swarm_command(self, swarm, method_name, args):
         """Execute command on swarm with individual drone failure handling"""
@@ -364,9 +488,18 @@ class ActionExecutor:
 
         # Process results
         failures = []
+        connection_errors = []
         for i, success, error in results:
             if not success:
                 failures.append(f"drone_{i+1}: {error}")
+                # Check if this is a connection error
+                if self._is_connection_error(Exception(error)):
+                    connection_errors.append(f"drone_{i+1}")
+
+        # If all failures are connection errors, mark connection as failed
+        if failures and len(connection_errors) == len(failures):
+            self.logger.warning("All drone command failures appear to be connection-related")
+            self.connected = False
 
         if not failures:
             return ActionResult(
@@ -508,12 +641,20 @@ class ActionExecutor:
                         message=f"Successfully executed {action}"
                     )
                 else:
+                    # Check if this is a connection error and mark connection as failed
+                    if self._is_connection_error(Exception(error)):
+                        self.logger.warning("Connection error detected in command execution")
+                        self.connected = False
                     return ActionResult(
                         status=ActionStatus.FAILED,
                         message=f"Failed to execute {action}",
                         error_details=error
                     )
         except Exception as e:
+            # Check if this is a connection error and mark connection as failed
+            if self._is_connection_error(e):
+                self.logger.warning("Connection error detected in command execution")
+                self.connected = False
             return ActionResult(
                 status=ActionStatus.FAILED,
                 message=f"Failed to execute {action}",
