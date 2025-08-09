@@ -72,16 +72,25 @@ class PubSubClient:
                     payload = json.loads(payload_str)
                     print(f"Received payload: {payload}")
 
-                    # Execute action with error handling to prevent stopping message processing
+                    # Execute action with robust error handling to prevent stopping message processing
                     try:
                         result = self.executor.execute_action(payload)
-                        if result.status.value != "success":
-                            logging.warning(f"Action execution result: {result.status.value} - {result.message}")
+                        # Log the result but continue processing regardless of outcome
+                        if result.status.value == "success":
+                            if result.error_details:
+                                logging.info(f"Action executed with warnings: {result.message}")
+                            else:
+                                logging.info(f"Action executed successfully: {result.message}")
+                        else:
+                            logging.warning(f"Action execution had issues: {result.status.value} - {result.message}")
                             if result.error_details:
                                 logging.warning(f"Error details: {result.error_details}")
                     except Exception as exec_error:
-                        logging.error(f"Exception during action execution: {exec_error}")
-                        logging.error(f"Action execution failed but continuing message processing...")
+                        # Even if action execution completely fails, continue processing
+                        logging.warning(f"Exception during action execution: {exec_error}")
+                        logging.info(f"Continuing to process future AWS IoT messages...")
+
+                    # Always continue processing - this is key for robustness
 
                 except json.JSONDecodeError as e:
                     logging.error(f"Failed to parse outer JSON: {e}")
