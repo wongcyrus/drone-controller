@@ -13,3 +13,4 @@ logs/
 .env
 
 iot\certifications\*
+.DS_Store
